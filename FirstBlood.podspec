@@ -2,7 +2,7 @@ Pod::Spec.new do |spec|
   # 库名称
   spec.name         = "FirstBlood"
   # 版本号
-  spec.version      = "0.0.1"
+  spec.version      = "0.0.2"
   # Swift版本
   spec.swift_versions   = "5.0"
   # 库简短介绍,以后search到简介
