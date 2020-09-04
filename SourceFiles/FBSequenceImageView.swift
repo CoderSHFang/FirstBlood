@@ -8,7 +8,7 @@
 
 import UIKit
 
-class FBSequenceImageView: UIImageView {
+public class FBSequenceImageView: UIImageView {
     // MARK: 初始化方法
     override init(frame: CGRect) {
         super.init(frame: frame)

@@ -8,7 +8,7 @@
 
 import UIKit
 
-class FBSequenceManager {
+public class FBSequenceManager {
     // MARK: - 属性
     /// 序列图管理单例
     static let shared = FBSequenceManager()

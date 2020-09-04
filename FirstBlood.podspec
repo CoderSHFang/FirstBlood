@@ -14,7 +14,9 @@ Pod::Spec.new do |spec|
   # 开源库作者
   spec.author             = { "Fat-Brother" => "email@address.com" }
   # 最低支持 iOS build 的平台
-  spec.platform     = :ios, "8.0"
+  spec.platform     = :ios, "10.0"
+  # 最低开发
+  spec.ios.deployment_target = "10.0"
   # 开源库 GitHub 的路径与 tag 值，GitHub路径后必须有 .git,tag 实际就是上面的版本
   spec.source       = { :git => "https://github.com/Fat-Brother/FirstBlood.git", :tag => spec.version }
   # 源库资源文件

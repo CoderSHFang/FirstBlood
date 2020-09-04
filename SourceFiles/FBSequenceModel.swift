@@ -8,7 +8,7 @@
 
 import Foundation
 
-class FBSequenceModel {
+public class FBSequenceModel {
     /// 图像路径
     var imagePath: String? {
         guard let imageName = imageName, let directory = directory else {

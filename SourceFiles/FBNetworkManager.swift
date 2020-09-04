@@ -12,7 +12,7 @@ enum FBHTTPMethod {
 }
 
 /// 网络管理工具
-class FBNetworkManager: AFHTTPSessionManager {
+public class FBNetworkManager: AFHTTPSessionManager {
     /// 静态区/常量/闭包
     /// 在第一次访问时，执行闭包，并且将结果保存在shared中
     static let shared: FBNetworkManager = {

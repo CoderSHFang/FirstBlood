@@ -9,7 +9,7 @@
 import Foundation
 
 /// 网络下载文件模型
-class FBNetworkDownload {
+public class FBNetworkDownload {
     /// 下载任务
     var downloadTask: URLSessionDataTask?
     
@@ -55,7 +55,7 @@ class FBNetworkDownload {
 }
 
 /// 网络下载文件进度模型
-class FBNetworkDownloadProgress {
+public class FBNetworkDownloadProgress {
     /// 写入字节的数据长度。
     var totalBytesWritten: Int = 0
     
