@@ -6,7 +6,7 @@
 //
 import AFNetworking
 /// Swift 的枚举支持任意数据类型
-enum FBHTTPMethod {
+public enum FBHTTPMethod {
     case GET
     case POST
 }
