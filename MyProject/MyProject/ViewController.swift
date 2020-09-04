@@ -65,15 +65,20 @@ class ViewController: UIViewController {
 //
 //        downloadSequences(URLString: URLString, cachesPath: cachesPath, totalBytesWritten: 0)
          
-        let URLString = "http://list.yunnto.cn/api/app/getUploadImgUrl"
-        FBNetworkManager.shared.request(method: .POST, URLString: URLString, parameters: nil) { (result, isSuccess) in
-            print("result: \(result ?? "")")
-            let data = (result as! [String: Any])["data"] as! [String: Any]
-            let downloadURLString = data["url"] as! String
-            let path = NSSearchPathForDirectoriesInDomains(.cachesDirectory, .userDomainMask, true)[0]
-            let cachesPath = (path as NSString).appendingPathComponent("3D")
-            self.downloadSequences(URLString: downloadURLString, cachesPath: cachesPath, totalBytesWritten: 0)
-        }
+//        let URLString = "http://list.yunnto.cn/api/app/getUploadImgUrl"
+//        FBNetworkManager.shared.request(method: .POST, URLString: URLString, parameters: nil) { (result, isSuccess) in
+//            print("result: \(result ?? "")")
+//            let data = (result as! [String: Any])["data"] as! [String: Any]
+//            let downloadURLString = data["url"] as! String
+//            let path = NSSearchPathForDirectoriesInDomains(.cachesDirectory, .userDomainMask, true)[0]
+//            let cachesPath = (path as NSString).appendingPathComponent("3D")
+//            self.downloadSequences(URLString: downloadURLString, cachesPath: cachesPath, totalBytesWritten: 0)
+//        }
+        
+        let downloadURLString = "https://yunnto.oss-cn-shenzhen.aliyuncs.com/List/H5/sequence/dyc/sanweishapan/%E5%8C%BA%E4%BD%8D%E8%BD%B4%E4%BE%A7.zip"
+        let path = NSSearchPathForDirectoriesInDomains(.cachesDirectory, .userDomainMask, true)[0]
+        let cachesPath = (path as NSString).appendingPathComponent("3D")
+        self.downloadSequences(URLString: downloadURLString, cachesPath: cachesPath, totalBytesWritten: 0)
         
     }
     
