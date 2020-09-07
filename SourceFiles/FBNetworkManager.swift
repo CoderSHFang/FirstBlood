@@ -96,6 +96,7 @@ extension FBNetworkManager {
         
         // 成功回调
         let success = { (task: URLSessionDataTask, json: Any?)->() in
+            print("json:\(json ?? "nil")")
             completion(json, true)
         }
         // 失败回调
@@ -298,5 +299,31 @@ extension FBNetworkManager {
         task.resume()
         
         return downloadModel
+    }
+    
+    func downloadFile(URLString: String, cachesPath: String) {
+        // 0. 创建请求
+        guard let url = URL(string: URLString) else {
+            print("URL 创建失败")
+            return
+        }
+        let request = URLRequest(url: url)
+        
+        let task = downloadTask(with: request, progress: { (downloadProgress) in
+            
+            print(String(format: "当前下载进度:%.2f%%", 100.0 * CGFloat(downloadProgress.completedUnitCount) / CGFloat(downloadProgress.totalUnitCount)))
+            
+        }, destination: { (tmpURL, response) -> URL in
+            let path = NSSearchPathForDirectoriesInDomains(.cachesDirectory, .userDomainMask, true)[0]
+            let cachesPath = (path as NSString).appendingPathComponent("manYou")
+            
+            print("cachesPath: \(cachesPath)")
+            
+            return URL(string: cachesPath)!
+        }) { (response, filePath, error) in
+            print("filePath: \(String(describing: filePath))")
+        }
+        
+        task.resume()
     }
 }
