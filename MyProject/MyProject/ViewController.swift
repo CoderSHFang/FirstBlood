@@ -24,6 +24,7 @@ class ViewController: UIViewController {
     
     private var currentDownloadTask: URLSessionDownloadTask?
     private var currentResumeData: Data?
+    private var currentArchiveTuple: (allArchives: [[YSSequenceArchive]], paths: [String])?
     
     var issuspend: Bool = false
     
@@ -50,24 +51,30 @@ class ViewController: UIViewController {
     
     private func addObserver() {
         NotificationCenter.default.addObserver(self,
-                                               selector: #selector(applicationWillResignActive),
-                                               name: UIApplication.willResignActiveNotification,
-                                               object: nil)
-        NotificationCenter.default.addObserver(self,
-                                               selector: #selector(applicationwillEnterForeground),
-                                               name: UIApplication.willEnterForegroundNotification,
+                                               selector: #selector(applicationwillTerminate),
+                                               name: UIApplication.willTerminateNotification,
                                                object: nil)
     }
     
 }
 
 @objc private extension ViewController {
-    func applicationWillResignActive() {
-
-    }
-    
-    func applicationwillEnterForeground() {
+    func applicationwillTerminate() {
         
+        guard let tuple = currentArchiveTuple else {
+            return
+        }
+        
+        for (idx, archives) in (tuple.allArchives).enumerated() {
+            
+            let fileDirectory = tuple.paths[idx]
+            
+            for model in archives {
+                let filePath = fileDirectory + "/\(model.name ?? "")" + ".\(model.extension ?? "")"
+                // 删除已下载的 zip 包
+                try? FileManager.default.removeItem(atPath: filePath)
+            }
+        }
     }
 }
 
@@ -188,6 +195,8 @@ private extension ViewController {
 private extension ViewController {
     func downloadAndUnzip(models: [YSSequenceArchive]) {
         let tuple = classifyArchive(models: models)
+        
+        currentArchiveTuple = tuple
         
         downloadAllSequences(at: tuple.allArchives, paths: tuple.paths, comlpetion: { [weak self] in
             
