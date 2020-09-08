@@ -27,125 +27,285 @@ class ViewController: UIViewController {
         loadData()
         
     }
+    
 }
 
 // MARK: 下载资源
 private extension ViewController {
     func loadData() {
+        loadArchiveInfo {[weak self] (networkModels, isSuccess) in
+            
+            if isSuccess {
+                // 1. 检查本地是否有 archiveInfo
+                guard let data = NSData(contentsOfFile: archiveInfoPath),
+                    let array = try? JSONSerialization.jsonObject(with: data as Data, options: []) as? [[String: Any]] else {
+                        print("本地没有 archiveInfo")
+                        self?.downloadAndUnzip(models: networkModels)
+                    return
+                }
+                
+                let localModels = array.kj.modelArray(type: YSSequenceArchive.self) as! [YSSequenceArchive]
+                
+                if networkModels.count != localModels.count {
+                    print("本地 archiveInfo 与网络请求的 archiveInfo 不一致")
+                    self?.downloadAndUnzip(models: networkModels)
+                }else {
+                    
+                    let count = networkModels.count
+                    
+                    var newModels = [YSSequenceArchive]()
+                    
+                    for i in 0..<count {
+                        let networkModel = networkModels[i]
+                        let localModel = localModels[i]
+                        
+                        if networkModel.version != localModel.version {
+                            newModels.append(networkModel)
+                        }
+                    }
+                    
+                    if newModels.count != 0 {
+                        print("archiveInfo 有更新")
+                        self?.downloadAndUnzip(models: newModels)
+                    }else {
+                        print("archiveInfo 无更新")
+                    }
+                }
+            }
+        }
+    }
+    
+    func loadArchiveInfo(comlpetion: @escaping (_ networkModels: [YSSequenceArchive], _ isSuccess: Bool)->()) {
         let urlString = "http://list.yunnto.cn/api/app/getUploadImgUrl"
         let param = ["project_id": 6]
-        FBNetworkManager.shared.request(method: .POST, URLString: urlString, parameters: param) { [weak self] (json, isSuccess) in
-            // 取出 result
-            guard let json = (json as? [String: Any]),
-                let result = json["data"] as? [[String: Any]]
-                else {
+        FBNetworkManager.shared.request(method: .POST, URLString: urlString, parameters: param) { (json, isSuccess) in
+            
+            if isSuccess {
+                // 取出 result
+                guard let json = (json as? [String: Any]),
+                    let result = json["data"] as? [[String: Any]]
+                    else {
+                        print("解析失败")
+                        comlpetion([YSSequenceArchive](), false)
+                        return
+                }
+                
+                // 转模型数组
+                let models = result.kj.modelArray(type: YSSequenceArchive.self) as! [YSSequenceArchive]
+                
+                comlpetion(models, true)
+                
+            }else {
+                print("暂无网络")
+                comlpetion([YSSequenceArchive](), false)
+            }
+        }
+    }
+    
+    /// 对压缩包进行分类
+    func classifyArchive(models: [YSSequenceArchive]) -> (allArchives: [[YSSequenceArchive]], paths: [String]) {
+        // 准备分类好的模型数组
+        var louCengArchives = [YSSequenceArchive]()
+        var sanWeiArchives = [YSSequenceArchive]()
+        var manYouArchives = [YSSequenceArchive]()
+        
+        // 资源分类
+        for model in models {
+            // 楼层诠释
+            if model.type == 1 {
+                louCengArchives.append(model)
+                continue
+            }
+            
+            // 三维沙盘
+            if model.type == 2 {
+                sanWeiArchives.append(model)
+                continue
+            }
+            
+            // 园林漫游
+            if model.type == 3 {
+                manYouArchives.append(model)
+                continue
+            }
+        }
+        
+        let path = NSSearchPathForDirectoriesInDomains(.cachesDirectory, .userDomainMask, true)[0]
+        
+        // 准备路径
+        let louCengPath = (path as NSString).appendingPathComponent("louCeng")
+        let sanWeiPath = (path as NSString).appendingPathComponent("sanWei")
+        let manYouPath = (path as NSString).appendingPathComponent("manYou")
+        
+        return ([louCengArchives, sanWeiArchives, manYouArchives],
+                [louCengPath, sanWeiPath, manYouPath])
+//        return ([louCengArchives], [louCengPath])
+    }
+}
+
+// MARK: 下载图像的方法
+private extension ViewController {
+    func downloadAndUnzip(models: [YSSequenceArchive]) {
+        let tuple = classifyArchive(models: models)
+        
+        downloadAllSequences(at: tuple.allArchives, paths: tuple.paths, comlpetion: { [weak self] in
+            
+            // 解压
+            for (idx, archives) in (tuple.allArchives).enumerated() {
+                
+                let fileDirectory = tuple.paths[idx]
+                
+                for model in archives {
+                    let filePath = fileDirectory + "/\(model.name ?? "")" + ".\(model.extension ?? "")"
+                    self?.archiveUnzip(filePath: filePath, toDestination: fileDirectory)
+                }
+            }
+            
+            // 保存下载信息
+            guard let data = try? JSONSerialization.data(withJSONObject: models.kj.JSONObjectArray(), options: []) else {
                 return
             }
             
-            // 转模型数组
-            let downloadArr = result.kj.modelArray(type: YSDownload.self) as! [YSDownload]
+            (data as NSData).write(toFile: archiveInfoPath, atomically: true)
             
-            // 准备分类好的模型
-            var louCengdownloadArr = [YSDownload]()
-            var sanWeidownloadArr = [YSDownload]()
-            var manYoudownloadArr = [YSDownload]()
-            
-            // 资源分类
-            for model in downloadArr {
-                // 楼层诠释
-                if model.type == 1 {
-                    louCengdownloadArr.append(model)
-                    continue
-                }
-                
-                // 三维沙盘
-                if model.type == 2 {
-                    sanWeidownloadArr.append(model)
-                    continue
-                }
-                
-                // 园林漫游
-                if model.type == 3 {
-                    manYoudownloadArr.append(model)
-                    continue
-                }
-            }
-            
-            // 准备需要保存的模型数组
-    //            var louCengArr = [FBNetworkDownload]()
-    //            var sanWeiArr = [FBNetworkDownload]()
-    //            var manYouArr = [FBNetworkDownload]()
-            
-            // 下载资源
-    //            self?.downloadResources(at: louCengdownloadArr, directoryName: "louCeng", completion: { (downloads) in
-    //            })
-            
-            let path = NSSearchPathForDirectoriesInDomains(.cachesDirectory, .userDomainMask, true)[0]
-            let cachesPath = (path as NSString).appendingPathComponent("manYou")
-            self?.downloadSequences(URLString: manYoudownloadArr.first?.url ?? "", cachesPath: cachesPath, totalBytesWritten: 0, completion: { (download) in
-            })
-            
-//            FBNetworkManager.shared.downloadFile(URLString: manYoudownloadArr.first?.url ?? "", cachesPath: cachesPath)
-        }
+            // 完成!
+        })
     }
     
-    func downloadSequences(URLString: String, cachesPath: String, totalBytesWritten: Int, completion: @escaping (_ download: FBNetworkDownload?)->()) {
+    /// 下载所有图像的方法
+    func downloadAllSequences(at allArchives: [[YSSequenceArchive]], paths: [String], comlpetion: @escaping ()->()) {
+        // 1. 创建队列
+        let queue = OperationQueue()
+        queue.maxConcurrentOperationCount = 1
         
-        var tempDownload: FBNetworkDownload?
+        var ops = [BlockOperation]()
         
-        tempDownload = FBNetworkManager.shared.download(URLString: URLString, cachesPath: cachesPath, totalBytesWritten: totalBytesWritten, receiveResponse: { (download) in
-            print("URLString: \(download.URLString ?? "")")
-            print("fileName: \(download.fileName ?? "")")
-            print("fileDirectory: \(download.fileDirectory ?? "")")
-            print("fileSize: \(download.fileSize ?? "")")
-            print("--------------------")
-            
-        }, progress: { (downloadProgress) in
-            
-//            OperationQueue.main.addOperation {
-//                self.downloadProgressView.progress =  Float(downloadProgress.downloadProgress)
-//                self.downloadProgressLabel.text = "\(String(format: "下载中...%0.0f", downloadProgress.downloadProgress * 100))%"
-//            }
-            print("\(String(format: "下载中...%0.0f", downloadProgress.downloadProgress * 100))%")
-            
-        }) { (isSuccess) in
-            
-            if isSuccess {
+        let semaphoreSignal = DispatchSemaphore(value: 1)
+        
+        for (idx, archives) in allArchives.enumerated() {
+            let op = BlockOperation { [weak self] in
+                semaphoreSignal.wait()
                 
-//                self.downloadProgressLabel.text = "下载完成"
+                self?.downloadGroupSequences(models: archives, cachesPath: paths[idx]) {
+                    
+                    // 所有的操作已完成
+                    if queue.operations.count == 0 {
+                        comlpetion()
+                    }
+                    
+                    semaphoreSignal.signal()
+                }
                 
-                // 解压
-                guard let downloadModel = tempDownload,
-                    let fileDirectory = self.archiveUnzip(model: downloadModel) else {
+            }
+            
+            ops.append(op)
+        }
+        
+        // 添加依赖关系
+        for (i, op) in ops.enumerated() {
+            if i > 0 {
+                op.addDependency(ops[i - 1])
+            }
+        }
+        
+        // 添加到队列中
+        queue.addOperations(ops, waitUntilFinished: false)
+    }
+    
+    /// 下载 n 组图像的方法
+    func downloadGroupSequences(models: [YSSequenceArchive], cachesPath: String, comlpetion: @escaping ()->()) {
+        
+        // 1. 创建队列
+        let queue = OperationQueue()
+        queue.maxConcurrentOperationCount = 1
+        
+        var ops = [BlockOperation]()
+        
+        let semaphoreSignal = DispatchSemaphore(value: 1)
+        
+        for (idx, model) in models.enumerated() {
+            // 3. 创建任务
+            let op = BlockOperation {
+                semaphoreSignal.wait()
+                
+                guard let url = URL(string: model.url ?? "") else {
+                    print("URL 创建失败")
+                    semaphoreSignal.signal()
                     return
                 }
-
-                print("fileDirectory: \(fileDirectory)")
+                let request = URLRequest(url: url)
                 
-                print("下载完成")
+                let task = FBNetworkManager.shared.downloadTask(with: request, progress: {[weak self] (downloadProgress) in
+                    OperationQueue.main.addOperation {
+                        let progress = 1.0 * Float(downloadProgress.completedUnitCount) / Float(downloadProgress.totalUnitCount)
+                        self?.updateProgress(progress: progress, text: "下载中")
+                    }
+                    
+                }, destination: { (tmpURL, response) -> URL in
+                    
+                    // 2.3 创建一个空的文件夹
+                    if FileManager.default.fileExists(atPath: cachesPath) == false {
+                        try? FileManager.default.createDirectory(atPath: cachesPath, withIntermediateDirectories: true, attributes: nil)
+                    }
+                    
+                    return URL(fileURLWithPath: cachesPath + "/\(model.name ?? "")" + ".\(model.extension ?? "")")
+                    
+                }) { (response, filePath, error) in
+                    print("filePath: \(String(describing: filePath))")
+                    
+                    // 所有的操作都已完成
+                    if queue.operations.count == 0 {
+                        comlpetion()
+                    }
+                    
+                    semaphoreSignal.signal()
+                }
                 
-                completion(tempDownload)
+                print(String(format: "正在下载: %@ -- index: %d", model.name ?? "", idx))
+                task.resume()
                 
-            }else {
-                print("下载失败")
-                completion(nil)
             }
             
+            ops.append(op)
+        }
+        
+        // 添加依赖关系
+        for (i, op) in ops.enumerated() {
+            if i > 0 {
+                op.addDependency(ops[i - 1])
+            }
+        }
+        
+        // 添加到队列中
+        queue.addOperations(ops, waitUntilFinished: false)
+    }
+}
+
+// MARK: 解压zip文件的方法
+private extension ViewController {
+    
+    func archiveUnzip(filePath: String, toDestination: String) {
+        SSZipArchive.unzipFile(atPath: filePath,
+                               toDestination: toDestination,
+                               progressHandler: {[weak self] (entry, zipInfo, entryNumber, total) in
+                                                
+            self?.updateProgress(progress: Float(entryNumber) / Float(total), text: "正在解压")
+                                                
+        }) { (path, isSuccess, error) in
+            // 删除压缩包
+            try? FileManager.default.removeItem(atPath: filePath)
         }
     }
-    
-    func archiveUnzip(model: FBNetworkDownload) -> String? {
-        let isSuccess = SSZipArchive.unzipFile(atPath: model.filePath ?? "", toDestination: model.fileDirectory ?? "")
-        
-        if isSuccess == false {
-            return nil
+}
+
+// MARK: 更新进度的方法
+private extension ViewController {
+    // 更新进度的方法
+    func updateProgress(progress: Float, text: String) {
+        DispatchQueue.main.async {
+            self.downloadProgressView.progress = 1.0 * progress
+            self.downloadProgressLabel.text = String(format: "\(text): %.0f%%", 100.0 * progress)
         }
-        
-        // 删除压缩包
-        try? FileManager.default.removeItem(atPath: model.filePath ?? "")
-        
-        return  ((model.filePath ?? "") as NSString).deletingPathExtension
-        
     }
 }
 

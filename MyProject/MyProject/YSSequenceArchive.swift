@@ -1,5 +1,5 @@
 //
-//  YSDownload.swift
+//  YSSequenceArchive.swift
 //  DaYueCityHD
 //
 //  Created by Mac mini on 2020/9/4.
@@ -8,10 +8,12 @@
 
 import KakaJSON
 
-class YSDownload: Convertible {
+class YSSequenceArchive: Convertible {
     var created_at: String?
     
     var name: String?
+    
+    var `extension` : String?
     
     var project_id: String?
     

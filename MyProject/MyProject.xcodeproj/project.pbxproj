@@ -19,8 +19,9 @@
 		9A0C4836250213970004A3D6 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 9A0C4835250213970004A3D6 /* Main.storyboard */; };
 		9A0C48382502139F0004A3D6 /* ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A0C48372502139F0004A3D6 /* ViewController.swift */; };
 		9A3D8B992505E19B00EAE4DB /* HTMLFile in Resources */ = {isa = PBXBuildFile; fileRef = 9A3D8B982505E19B00EAE4DB /* HTMLFile */; };
-		9A3D8BB025065FB800EAE4DB /* FBDownloadOperation.m in Sources */ = {isa = PBXBuildFile; fileRef = 9A3D8BAF25065FB800EAE4DB /* FBDownloadOperation.m */; };
-		9A7C13C72505DCE3002DB35F /* YSDownload.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A7C13C62505DCE3002DB35F /* YSDownload.swift */; };
+		9A3D8BB72507741D00EAE4DB /* FBCacheTool.m in Sources */ = {isa = PBXBuildFile; fileRef = 9A3D8BB52507741D00EAE4DB /* FBCacheTool.m */; };
+		9A3D8BB925077EE800EAE4DB /* Common.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A3D8BB825077EE800EAE4DB /* Common.swift */; };
+		9A7C13C72505DCE3002DB35F /* YSSequenceArchive.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A7C13C62505DCE3002DB35F /* YSSequenceArchive.swift */; };
 		AF53DA6266246ACC305CBB05 /* Pods_MyProject.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6CF4F6277337F4A9745D7408 /* Pods_MyProject.framework */; };
 /* End PBXBuildFile section */
 
@@ -43,9 +44,10 @@
 		9A0C48372502139F0004A3D6 /* ViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ViewController.swift; sourceTree = "<group>"; };
 		9A3D8B982505E19B00EAE4DB /* HTMLFile */ = {isa = PBXFileReference; lastKnownFileType = folder; path = HTMLFile; sourceTree = "<group>"; };
 		9A3D8BAC25065F1700EAE4DB /* MyProject-Bridge.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "MyProject-Bridge.h"; sourceTree = "<group>"; };
-		9A3D8BAE25065FB800EAE4DB /* FBDownloadOperation.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = FBDownloadOperation.h; sourceTree = "<group>"; };
-		9A3D8BAF25065FB800EAE4DB /* FBDownloadOperation.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = FBDownloadOperation.m; sourceTree = "<group>"; };
-		9A7C13C62505DCE3002DB35F /* YSDownload.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = YSDownload.swift; sourceTree = "<group>"; };
+		9A3D8BB52507741D00EAE4DB /* FBCacheTool.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = FBCacheTool.m; sourceTree = "<group>"; };
+		9A3D8BB62507741D00EAE4DB /* FBCacheTool.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = FBCacheTool.h; sourceTree = "<group>"; };
+		9A3D8BB825077EE800EAE4DB /* Common.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Common.swift; sourceTree = "<group>"; };
+		9A7C13C62505DCE3002DB35F /* YSSequenceArchive.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = YSSequenceArchive.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -98,18 +100,19 @@
 		9A0C4815250212500004A3D6 /* MyProject */ = {
 			isa = PBXGroup;
 			children = (
-				9A3D8BAD25065F9000EAE4DB /* OC */,
+				9A3D8BB42507741100EAE4DB /* OC */,
 				9A0C482A250212BC0004A3D6 /* SourceFiles */,
 				9A0C4816250212500004A3D6 /* AppDelegate.swift */,
 				9A0C4818250212500004A3D6 /* SceneDelegate.swift */,
 				9A0C48372502139F0004A3D6 /* ViewController.swift */,
-				9A7C13C62505DCE3002DB35F /* YSDownload.swift */,
+				9A7C13C62505DCE3002DB35F /* YSSequenceArchive.swift */,
 				9A0C481F250212510004A3D6 /* Assets.xcassets */,
 				9A0C4835250213970004A3D6 /* Main.storyboard */,
 				9A0C4821250212510004A3D6 /* LaunchScreen.storyboard */,
 				9A0C4824250212510004A3D6 /* Info.plist */,
 				9A3D8B982505E19B00EAE4DB /* HTMLFile */,
 				9A3D8BAC25065F1700EAE4DB /* MyProject-Bridge.h */,
+				9A3D8BB825077EE800EAE4DB /* Common.swift */,
 			);
 			path = MyProject;
 			sourceTree = "<group>";
@@ -117,8 +120,8 @@
 		9A0C482A250212BC0004A3D6 /* SourceFiles */ = {
 			isa = PBXGroup;
 			children = (
-				9A0C482D250212F20004A3D6 /* FBNetworkDownload.swift */,
 				9A0C482E250212F20004A3D6 /* FBNetworkManager.swift */,
+				9A0C482D250212F20004A3D6 /* FBNetworkDownload.swift */,
 				9A0C482C250212F20004A3D6 /* FBSequenceImageView.swift */,
 				9A0C482F250212F20004A3D6 /* FBSequenceManager.swift */,
 				9A0C482B250212F20004A3D6 /* FBSequenceModel.swift */,
@@ -127,11 +130,11 @@
 			path = ../../SourceFiles;
 			sourceTree = "<group>";
 		};
-		9A3D8BAD25065F9000EAE4DB /* OC */ = {
+		9A3D8BB42507741100EAE4DB /* OC */ = {
 			isa = PBXGroup;
 			children = (
-				9A3D8BAE25065FB800EAE4DB /* FBDownloadOperation.h */,
-				9A3D8BAF25065FB800EAE4DB /* FBDownloadOperation.m */,
+				9A3D8BB62507741D00EAE4DB /* FBCacheTool.h */,
+				9A3D8BB52507741D00EAE4DB /* FBCacheTool.m */,
 			);
 			path = OC;
 			sourceTree = "<group>";
@@ -252,15 +255,16 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9A3D8BB72507741D00EAE4DB /* FBCacheTool.m in Sources */,
 				9A0C4831250212F20004A3D6 /* FBSequenceImageView.swift in Sources */,
 				9A0C4833250212F20004A3D6 /* FBNetworkManager.swift in Sources */,
 				9A0C4832250212F20004A3D6 /* FBNetworkDownload.swift in Sources */,
-				9A3D8BB025065FB800EAE4DB /* FBDownloadOperation.m in Sources */,
+				9A3D8BB925077EE800EAE4DB /* Common.swift in Sources */,
 				9A0C4817250212500004A3D6 /* AppDelegate.swift in Sources */,
 				9A0C4830250212F20004A3D6 /* FBSequenceModel.swift in Sources */,
 				9A0C4834250212F20004A3D6 /* FBSequenceManager.swift in Sources */,
 				9A0C48382502139F0004A3D6 /* ViewController.swift in Sources */,
-				9A7C13C72505DCE3002DB35F /* YSDownload.swift in Sources */,
+				9A7C13C72505DCE3002DB35F /* YSSequenceArchive.swift in Sources */,
 				9A0C4819250212500004A3D6 /* SceneDelegate.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
