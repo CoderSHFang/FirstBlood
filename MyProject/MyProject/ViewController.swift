@@ -10,6 +10,7 @@ import UIKit
 import WebKit
 import SSZipArchive
 import SnapKit
+import AFNetworking
 
 class ViewController: UIViewController {
     private var webView: WKWebView?
@@ -21,13 +22,53 @@ class ViewController: UIViewController {
     private lazy var downloadProgressLabel = UILabel()
     private lazy var downloadItemLabel = UILabel()
     
+    private var currentDownloadTask: URLSessionDownloadTask?
+    private var currentResumeData: Data?
+    
+    var issuspend: Bool = false
+    
     override func viewDidLoad() {
         super.viewDidLoad()
         setupUI()
         loadData()
-        
+        addObserver()
     }
     
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        if issuspend {
+            issuspend = false
+            currentDownloadTask?.resume()
+        }else {
+            issuspend = true
+            currentDownloadTask?.suspend()
+        }
+    }
+    
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+    
+    private func addObserver() {
+        NotificationCenter.default.addObserver(self,
+                                               selector: #selector(applicationWillResignActive),
+                                               name: UIApplication.willResignActiveNotification,
+                                               object: nil)
+        NotificationCenter.default.addObserver(self,
+                                               selector: #selector(applicationwillEnterForeground),
+                                               name: UIApplication.willEnterForegroundNotification,
+                                               object: nil)
+    }
+    
+}
+
+@objc private extension ViewController {
+    func applicationWillResignActive() {
+
+    }
+    
+    func applicationwillEnterForeground() {
+        
+    }
 }
 
 // MARK: 下载资源
@@ -223,47 +264,17 @@ private extension ViewController {
         
         let semaphoreSignal = DispatchSemaphore(value: 1)
         
-        for (idx, model) in models.enumerated() {
+        for model in models {
             // 3. 创建任务
-            let op = BlockOperation {
+            let op = BlockOperation { [weak self] in
+                
                 semaphoreSignal.wait()
                 
-                guard let url = URL(string: model.url ?? "") else {
-                    print("URL 创建失败")
-                    semaphoreSignal.signal()
-                    return
-                }
-                let request = URLRequest(url: url)
-                
-                let task = FBNetworkManager.shared.downloadTask(with: request, progress: {[weak self] (downloadProgress) in
-                    OperationQueue.main.addOperation {
-                        let progress = 1.0 * Float(downloadProgress.completedUnitCount) / Float(downloadProgress.totalUnitCount)
-                        self?.updateProgress(progress: progress, text: "下载中")
-                    }
-                    
-                }, destination: { (tmpURL, response) -> URL in
-                    
-                    // 2.3 创建一个空的文件夹
-                    if FileManager.default.fileExists(atPath: cachesPath) == false {
-                        try? FileManager.default.createDirectory(atPath: cachesPath, withIntermediateDirectories: true, attributes: nil)
-                    }
-                    
-                    return URL(fileURLWithPath: cachesPath + "/\(model.name ?? "")" + ".\(model.extension ?? "")")
-                    
-                }) { (response, filePath, error) in
-                    print("filePath: \(String(describing: filePath))")
-                    
-                    // 所有的操作都已完成
-                    if queue.operations.count == 0 {
-                        comlpetion()
-                    }
-                    
-                    semaphoreSignal.signal()
-                }
-                
-                print(String(format: "正在下载: %@ -- index: %d", model.name ?? "", idx))
-                task.resume()
-                
+                self?.downloadTask(with: queue,
+                                   semaphoreSignal: semaphoreSignal,
+                                   model: model,
+                                   cachesPath: cachesPath,
+                                   comlpetion: comlpetion)
             }
             
             ops.append(op)
@@ -278,6 +289,123 @@ private extension ViewController {
         
         // 添加到队列中
         queue.addOperations(ops, waitUntilFinished: false)
+    }
+    
+    func downloadTask(with queue: OperationQueue,
+                      semaphoreSignal: DispatchSemaphore,
+                      model: YSSequenceArchive,
+                      cachesPath: String,
+                      comlpetion: @escaping ()->()) {
+        
+        
+        guard let url = URL(string: model.url ?? "") else {
+            print("URL 创建失败")
+            semaphoreSignal.signal()
+            return
+        }
+        let request = URLRequest(url: url)
+        
+        let task = FBNetworkManager.shared.downloadTask(with: request, progress: {[weak self] (downloadProgress) in
+            let progress = 1.0 * Float(downloadProgress.completedUnitCount) / Float(downloadProgress.totalUnitCount)
+            self?.updateProgress(progress: progress, text: "下载中")
+            
+        }, destination: { (tmpURL, response) -> URL in
+            
+            // 2.3 创建一个空的文件夹
+            if FileManager.default.fileExists(atPath: cachesPath) == false {
+                try? FileManager.default.createDirectory(atPath: cachesPath, withIntermediateDirectories: true, attributes: nil)
+            }
+            
+            return URL(fileURLWithPath: cachesPath + "/\(model.name ?? "")" + ".\(model.extension ?? "")")
+            
+        }) { [weak self] (response, filePath, error) in
+            print("filePath: \(String(describing: filePath))")
+            
+            if let error = (error as NSError?),
+                let resumeData = error.userInfo["NSURLSessionDownloadTaskResumeData"] as? Data {
+                
+                self?.currentResumeData = resumeData
+                
+                self?.downloadTaskResumeData(with: queue,
+                                             semaphoreSignal: semaphoreSignal,
+                                             model: model,
+                                             cachesPath: cachesPath,
+                                             comlpetion: comlpetion)
+                
+            }else {
+                
+                self?.currentResumeData = nil
+                self?.currentDownloadTask = nil
+                
+                // 所有的操作都已完成
+                if queue.operations.count == 0 {
+                    comlpetion()
+                }
+                
+                semaphoreSignal.signal()
+            }
+            
+        }
+        
+        print(String(format: "正在下载: %@", model.name ?? ""))
+        
+        currentDownloadTask = task
+        task.resume()
+    }
+    
+    func downloadTaskResumeData(with queue: OperationQueue,
+                                semaphoreSignal: DispatchSemaphore,
+                                model: YSSequenceArchive,
+                                cachesPath: String,
+                                comlpetion: @escaping ()->()) {
+        
+        guard let resumeData = currentResumeData else {
+            return
+        }
+        
+        let task = FBNetworkManager.shared.downloadTask(withResumeData: resumeData, progress: { [weak self] (downloadProgress) in
+            let progress = 1.0 * Float(downloadProgress.completedUnitCount) / Float(downloadProgress.totalUnitCount)
+            self?.updateProgress(progress: progress, text: "下载中")
+            
+        }, destination: { (tmpURL, response) -> URL in
+            // 2.3 创建一个空的文件夹
+            if FileManager.default.fileExists(atPath: cachesPath) == false {
+                try? FileManager.default.createDirectory(atPath: cachesPath, withIntermediateDirectories: true, attributes: nil)
+            }
+            
+            return URL(fileURLWithPath: cachesPath + "/\(model.name ?? "")" + ".\(model.extension ?? "")")
+        }) { [weak self] (response, filePath, error) in
+            print("filePath: \(String(describing: filePath))")
+            
+            if let error = (error as NSError?),
+                let resumeData = error.userInfo["NSURLSessionDownloadTaskResumeData"] as? Data {
+                
+                self?.currentResumeData = resumeData
+                
+                self?.downloadTaskResumeData(with: queue,
+                                             semaphoreSignal: semaphoreSignal,
+                                             model: model,
+                                             cachesPath: cachesPath,
+                                             comlpetion: comlpetion)
+                
+            }else {
+                
+                self?.currentResumeData = nil
+                self?.currentDownloadTask = nil
+                
+                // 所有的操作都已完成
+                if queue.operations.count == 0 {
+                    comlpetion()
+                }
+                
+                semaphoreSignal.signal()
+            }
+        }
+        
+        print(String(format: "断点下载: %@", model.name ?? ""))
+        
+        currentDownloadTask = task
+        task.resume()
     }
 }
 
