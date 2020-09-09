@@ -21,28 +21,18 @@ class ViewController: UIViewController {
     private lazy var downloadProgressView = UIProgressView(progressViewStyle: .default)
     private lazy var downloadProgressLabel = UILabel()
     private lazy var downloadItemLabel = UILabel()
+    private lazy var downloadSpeedLabel = UILabel()
     
     private var currentDownloadTask: URLSessionDownloadTask?
     private var currentResumeData: Data?
     private var currentArchiveTuple: (allArchives: [[YSSequenceArchive]], paths: [String])?
-    
-    var issuspend: Bool = false
+    private lazy var downloadSpeed: (date: Date, lastRead: Int64, speed: String) = (Date(), 0, "0 KB")
     
     override func viewDidLoad() {
         super.viewDidLoad()
         setupUI()
         loadData()
         addObserver()
-    }
-    
-    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        if issuspend {
-            issuspend = false
-            currentDownloadTask?.resume()
-        }else {
-            issuspend = true
-            currentDownloadTask?.suspend()
-        }
     }
     
     deinit {
@@ -273,17 +263,14 @@ private extension ViewController {
         
         let semaphoreSignal = DispatchSemaphore(value: 1)
         
-        for model in models {
+        for (idx, model) in models.enumerated() {
             // 3. 创建任务
             let op = BlockOperation { [weak self] in
                 
                 semaphoreSignal.wait()
                 
-                self?.downloadTask(with: queue,
-                                   semaphoreSignal: semaphoreSignal,
-                                   model: model,
-                                   cachesPath: cachesPath,
-                                   comlpetion: comlpetion)
+                let requestInfo = (queue, semaphoreSignal, model, cachesPath, idx, models.count)
+                self?.downloadTask(with: requestInfo, comlpetion: comlpetion)
             }
             
             ops.append(op)
@@ -300,32 +287,64 @@ private extension ViewController {
         queue.addOperations(ops, waitUntilFinished: false)
     }
     
-    func downloadTask(with queue: OperationQueue,
-                      semaphoreSignal: DispatchSemaphore,
-                      model: YSSequenceArchive,
-                      cachesPath: String,
+    func downloadTask(with requestInfo: (queue: OperationQueue,
+                                        semaphoreSignal: DispatchSemaphore,
+                                        model: YSSequenceArchive,
+                                        cachesPath: String,
+                                        idx: Int,
+                                        count: Int),
                       comlpetion: @escaping ()->()) {
         
-        
-        guard let url = URL(string: model.url ?? "") else {
+        guard let url = URL(string: requestInfo.model.url ?? "") else {
             print("URL 创建失败")
-            semaphoreSignal.signal()
+            requestInfo.semaphoreSignal.signal()
             return
         }
+        
         let request = URLRequest(url: url)
         
+        downloadSpeed.date = Date()
+        
         let task = FBNetworkManager.shared.downloadTask(with: request, progress: {[weak self] (downloadProgress) in
+            // 计算下载速度
+            let currentDate = Date()
+            let time = Int64(currentDate.timeIntervalSince(self!.downloadSpeed.date))
+            if time >= 1 {
+                let speed = (downloadProgress.completedUnitCount - self!.downloadSpeed.lastRead) / time
+                
+                if speed > 1024 {
+                    
+                }
+                
+                let countStyle: ByteCountFormatter.CountStyle = speed > 1024 ? .file : .binary
+                
+                self!.downloadSpeed.speed = ByteCountFormatter.string(fromByteCount: speed, countStyle: countStyle)
+                self!.downloadSpeed.lastRead = downloadProgress.completedUnitCount
+                self!.downloadSpeed.date = currentDate
+            }
+            
+            // 计算下载进度
             let progress = 1.0 * Float(downloadProgress.completedUnitCount) / Float(downloadProgress.totalUnitCount)
-            self?.updateProgress(progress: progress, text: "下载中")
+            let resourcesName = requestInfo.model.type == 1 ? "楼层诠释"
+                                : (requestInfo.model.type == 2 ? "三维沙盘"
+                                                                : "园林漫游")
+            let itemProgress = "正在下载：\(resourcesName)（\(requestInfo.idx)/\(requestInfo.count)）"
+            // 更新 UI
+            let downSpeed = "下载速度：\(self!.downloadSpeed.speed + "/秒")"
+            self?.updateProgress(progressInfo: (progress, "下载进度", itemProgress, downSpeed))
             
         }, destination: { (tmpURL, response) -> URL in
             
             // 2.3 创建一个空的文件夹
-            if FileManager.default.fileExists(atPath: cachesPath) == false {
-                try? FileManager.default.createDirectory(atPath: cachesPath, withIntermediateDirectories: true, attributes: nil)
+            if FileManager.default.fileExists(atPath: requestInfo.cachesPath) == false {
+                try? FileManager.default.createDirectory(atPath: requestInfo.cachesPath,
+                                                         withIntermediateDirectories: true,
+                                                         attributes: nil)
             }
             
-            return URL(fileURLWithPath: cachesPath + "/\(model.name ?? "")" + ".\(model.extension ?? "")")
+            return URL(fileURLWithPath: requestInfo.cachesPath
+                                        + "/\(requestInfo.model.name ?? "")"
+                                        + ".\(requestInfo.model.extension ?? "")")
             
         }) { [weak self] (response, filePath, error) in
             print("filePath: \(String(describing: filePath))")
@@ -334,55 +353,81 @@ private extension ViewController {
                 let resumeData = error.userInfo["NSURLSessionDownloadTaskResumeData"] as? Data {
                 
                 self?.currentResumeData = resumeData
+                self!.downloadSpeed.lastRead = 0
                 
-                self?.downloadTaskResumeData(with: queue,
-                                             semaphoreSignal: semaphoreSignal,
-                                             model: model,
-                                             cachesPath: cachesPath,
-                                             comlpetion: comlpetion)
+                self?.downloadTaskResumeData(with: requestInfo, comlpetion: comlpetion)
                 
             }else {
                 
                 self?.currentResumeData = nil
                 self?.currentDownloadTask = nil
+                self!.downloadSpeed.lastRead = 0
                 
                 // 所有的操作都已完成
-                if queue.operations.count == 0 {
+                if requestInfo.queue.operations.count == 0 {
                     comlpetion()
                 }
                 
-                semaphoreSignal.signal()
+                requestInfo.semaphoreSignal.signal()
             }
             
         }
         
-        print(String(format: "正在下载: %@", model.name ?? ""))
+        print(String(format: "正在下载: %@", requestInfo.model.name ?? ""))
         
         currentDownloadTask = task
         task.resume()
     }
     
-    func downloadTaskResumeData(with queue: OperationQueue,
-                                semaphoreSignal: DispatchSemaphore,
-                                model: YSSequenceArchive,
-                                cachesPath: String,
+    func downloadTaskResumeData(with requestInfo: (queue: OperationQueue,
+                                                semaphoreSignal: DispatchSemaphore,
+                                                model: YSSequenceArchive,
+                                                cachesPath: String,
+                                                idx: Int,
+                                                count: Int),
                                 comlpetion: @escaping ()->()) {
         
         guard let resumeData = currentResumeData else {
             return
         }
         
+        downloadSpeed.date = Date()
+        
         let task = FBNetworkManager.shared.downloadTask(withResumeData: resumeData, progress: { [weak self] (downloadProgress) in
+            // 计算下载速度
+            let currentDate = Date()
+            let time = Int64(currentDate.timeIntervalSince(self!.downloadSpeed.date))
+            if time >= 1 {
+                let speed = (downloadProgress.completedUnitCount - self!.downloadSpeed.lastRead) / time
+                let countStyle: ByteCountFormatter.CountStyle = speed > 1024 ? .file : .binary
+                
+                self!.downloadSpeed.speed = ByteCountFormatter.string(fromByteCount: speed, countStyle: countStyle)
+                self!.downloadSpeed.lastRead = downloadProgress.completedUnitCount
+                self!.downloadSpeed.date = currentDate
+            }
+            
+            // 计算下载进度
             let progress = 1.0 * Float(downloadProgress.completedUnitCount) / Float(downloadProgress.totalUnitCount)
-            self?.updateProgress(progress: progress, text: "下载中")
+            let resourcesName = requestInfo.model.type == 1 ? "楼层诠释"
+                                : (requestInfo.model.type == 2 ? "三维沙盘"
+                                                                : "园林漫游")
+            let itemProgress = "正在下载：\(resourcesName)（\(requestInfo.idx)/\(requestInfo.count)）"
+            // 更新 UI
+            let downSpeed = "下载速度：\(self!.downloadSpeed.speed + "/秒")"
+            self?.updateProgress(progressInfo: (progress, "下载进度", itemProgress, downSpeed))
             
         }, destination: { (tmpURL, response) -> URL in
             // 2.3 创建一个空的文件夹
-            if FileManager.default.fileExists(atPath: cachesPath) == false {
-                try? FileManager.default.createDirectory(atPath: cachesPath, withIntermediateDirectories: true, attributes: nil)
+            if FileManager.default.fileExists(atPath: requestInfo.cachesPath) == false {
+                try? FileManager.default.createDirectory(atPath: requestInfo.cachesPath,
+                                                         withIntermediateDirectories: true,
+                                                         attributes: nil)
             }
             
-            return URL(fileURLWithPath: cachesPath + "/\(model.name ?? "")" + ".\(model.extension ?? "")")
+            return URL(fileURLWithPath: requestInfo.cachesPath
+                                        + "/\(requestInfo.model.name ?? "")"
+                                        + ".\(requestInfo.model.extension ?? "")")
+            
         }) { [weak self] (response, filePath, error) in
             print("filePath: \(String(describing: filePath))")
             
@@ -390,28 +435,26 @@ private extension ViewController {
                 let resumeData = error.userInfo["NSURLSessionDownloadTaskResumeData"] as? Data {
                 
                 self?.currentResumeData = resumeData
+                self!.downloadSpeed.lastRead = 0
                 
-                self?.downloadTaskResumeData(with: queue,
-                                             semaphoreSignal: semaphoreSignal,
-                                             model: model,
-                                             cachesPath: cachesPath,
-                                             comlpetion: comlpetion)
+                self?.downloadTaskResumeData(with: requestInfo, comlpetion: comlpetion)
                 
             }else {
                 
                 self?.currentResumeData = nil
                 self?.currentDownloadTask = nil
+                self!.downloadSpeed.lastRead = 0
                 
                 // 所有的操作都已完成
-                if queue.operations.count == 0 {
+                if requestInfo.queue.operations.count == 0 {
                     comlpetion()
                 }
                 
-                semaphoreSignal.signal()
+                requestInfo.semaphoreSignal.signal()
             }
         }
         
-        print(String(format: "断点下载: %@", model.name ?? ""))
+        print(String(format: "断点下载: %@", requestInfo.model.name ?? ""))
         
         currentDownloadTask = task
         task.resume()
@@ -426,7 +469,7 @@ private extension ViewController {
                                toDestination: toDestination,
                                progressHandler: {[weak self] (entry, zipInfo, entryNumber, total) in
                                                 
-            self?.updateProgress(progress: Float(entryNumber) / Float(total), text: "正在解压")
+//            self?.updateProgress(progress: Float(entryNumber) / Float(total), text: "正在解压")
                                                 
         }) { (path, isSuccess, error) in
             // 删除压缩包
@@ -435,13 +478,20 @@ private extension ViewController {
     }
 }
 
-// MARK: 更新进度的方法
+// MARK: 更新进度，计算网速的方法
 private extension ViewController {
+    
     // 更新进度的方法
-    func updateProgress(progress: Float, text: String) {
+    func updateProgress(progressInfo: (progress: Float,
+                                       tipText: String,
+                                       resourcesName: String,
+                                       speed: String))
+    {
         DispatchQueue.main.async {
-            self.downloadProgressView.progress = 1.0 * progress
-            self.downloadProgressLabel.text = String(format: "\(text): %.0f%%", 100.0 * progress)
+            self.downloadSpeedLabel.text = progressInfo.speed
+            self.downloadItemLabel.text = progressInfo.resourcesName
+            self.downloadProgressView.progress = 1.0 * progressInfo.progress
+            self.downloadProgressLabel.text = String(format: "\(progressInfo.tipText): %.0f%%", 100.0 * progressInfo.progress)
         }
     }
 }
@@ -460,12 +510,15 @@ private extension ViewController {
         downloadProgressLabel.text = "下载中...0%"
         downloadItemLabel.font = UIFont.systemFont(ofSize: 12)
         downloadItemLabel.textColor = .white
+        downloadSpeedLabel.font = UIFont.systemFont(ofSize: 12)
+        downloadSpeedLabel.textColor = .white
         
         view.addSubview(backView)
         view.addSubview(iconView)
         view.addSubview(downloadProgressLabel)
         view.addSubview(downloadProgressView)
         view.addSubview(downloadItemLabel)
+        view.addSubview(downloadSpeedLabel)
         view.addSubview(logoView)
        
         backView.snp.makeConstraints { (make) in
@@ -492,6 +545,12 @@ private extension ViewController {
             make.top.equalTo(downloadProgressView.snp.bottom).offset(10)
             make.right.equalTo(downloadProgressView.snp.right)
         }
+        
+        downloadSpeedLabel.snp.makeConstraints { (make) in
+            make.top.equalTo(downloadProgressView.snp.bottom).offset(10)
+            make.left.equalTo(downloadProgressView.snp.left)
+        }
+
 
         logoView.snp.makeConstraints { (make) in
             make.centerX.equalTo(iconView)
