@@ -28,6 +28,8 @@ class ViewController: UIViewController {
     private var currentArchiveTuple: (allArchives: [[YSSequenceArchive]], paths: [String])?
     private lazy var downloadSpeed: (date: Date, lastRead: Int64, speed: String) = (Date(), 0, "0 KB")
     
+    var downloadCompletion: (()->())?
+    
     override func viewDidLoad() {
         super.viewDidLoad()
         setupUI()
@@ -107,6 +109,24 @@ private extension ViewController {
                         self?.downloadAndUnzip(models: newModels)
                     }else {
                         print("archiveInfo 无更新")
+                        var progress: Float = 0.0
+                        Timer.scheduledTimer(withTimeInterval: 0.01, repeats: true) { [weak self] (timer) in
+                            
+                            if progress >= 1.0 {
+                                timer.invalidate()
+                                self?.updateProgress(progressInfo: (1.0, "加载完成", "", ""))
+                                DispatchQueue.main.asyncAfter(deadline: DispatchTime.now() + 1) {
+                                    self?.downloadCompletion?()
+                                    self?.dismiss(animated: true, completion: nil)
+                                }
+                                return
+                            }else {
+                                self?.updateProgress(progressInfo: (progress, "正在加载本地资源", "", ""))
+                            }
+                            
+                            
+                            progress += 0.01
+                        }
                     }
                 }
             }
@@ -175,9 +195,9 @@ private extension ViewController {
         let sanWeiPath = (path as NSString).appendingPathComponent("sanWei")
         let manYouPath = (path as NSString).appendingPathComponent("manYou")
         
-        return ([louCengArchives, sanWeiArchives, manYouArchives],
-                [louCengPath, sanWeiPath, manYouPath])
-//        return ([louCengArchives], [louCengPath])
+//        return ([louCengArchives, sanWeiArchives, manYouArchives],
+//                [louCengPath, sanWeiPath, manYouPath])
+        return ([louCengArchives], [louCengPath])
     }
 }
 
@@ -190,25 +210,43 @@ private extension ViewController {
         
         downloadAllSequences(at: tuple.allArchives, paths: tuple.paths, comlpetion: { [weak self] in
             
+            self?.downloadSpeedLabel.text = ""
+            self?.downloadItemLabel.text = ""
+            self?.downloadProgressView.progress = 1.0
+            self?.downloadProgressLabel.text = "正在解压中..."
+            
+            let group = DispatchGroup()
+            
             // 解压
             for (idx, archives) in (tuple.allArchives).enumerated() {
                 
-                let fileDirectory = tuple.paths[idx]
+                group.enter()
                 
-                for model in archives {
-                    let filePath = fileDirectory + "/\(model.name ?? "")" + ".\(model.extension ?? "")"
-                    self?.archiveUnzip(filePath: filePath, toDestination: fileDirectory)
+                DispatchQueue.global().async {
+                    let fileDirectory = tuple.paths[idx]
+                    self?.archiveUnzip(archives: archives, toDestination: fileDirectory, comlpetion: {
+                        
+                        group.leave()
+                    })
                 }
             }
             
-            // 保存下载信息
-            guard let data = try? JSONSerialization.data(withJSONObject: models.kj.JSONObjectArray(), options: []) else {
-                return
+            group.notify(queue: DispatchQueue.main) {
+                // 保存下载信息
+                guard let data = try? JSONSerialization.data(withJSONObject: models.kj.JSONObjectArray(), options: []) else {
+                    return
+                }
+                
+                (data as NSData).write(toFile: archiveInfoPath, atomically: true)
+                
+                // 完成!
+                self?.downloadProgressLabel.text = "解压完成!"
+                DispatchQueue.main.asyncAfter(deadline: DispatchTime.now() + 1) {
+                    self?.downloadCompletion?()
+                    self?.dismiss(animated: true, completion: nil)
+                }
             }
             
-            (data as NSData).write(toFile: archiveInfoPath, atomically: true)
-            
-            // 完成!
         })
     }
     
@@ -312,10 +350,6 @@ private extension ViewController {
             if time >= 1 {
                 let speed = (downloadProgress.completedUnitCount - self!.downloadSpeed.lastRead) / time
                 
-                if speed > 1024 {
-                    
-                }
-                
                 let countStyle: ByteCountFormatter.CountStyle = speed > 1024 ? .file : .binary
                 
                 self!.downloadSpeed.speed = ByteCountFormatter.string(fromByteCount: speed, countStyle: countStyle)
@@ -328,7 +362,7 @@ private extension ViewController {
             let resourcesName = requestInfo.model.type == 1 ? "楼层诠释"
                                 : (requestInfo.model.type == 2 ? "三维沙盘"
                                                                 : "园林漫游")
-            let itemProgress = "正在下载：\(resourcesName)（\(requestInfo.idx)/\(requestInfo.count)）"
+            let itemProgress = "正在下载：\(resourcesName)（\(requestInfo.idx + 1)/\(requestInfo.count)）"
             // 更新 UI
             let downSpeed = "下载速度：\(self!.downloadSpeed.speed + "/秒")"
             self?.updateProgress(progressInfo: (progress, "下载进度", itemProgress, downSpeed))
@@ -366,6 +400,7 @@ private extension ViewController {
                 // 所有的操作都已完成
                 if requestInfo.queue.operations.count == 0 {
                     comlpetion()
+                    
                 }
                 
                 requestInfo.semaphoreSignal.signal()
@@ -411,7 +446,7 @@ private extension ViewController {
             let resourcesName = requestInfo.model.type == 1 ? "楼层诠释"
                                 : (requestInfo.model.type == 2 ? "三维沙盘"
                                                                 : "园林漫游")
-            let itemProgress = "正在下载：\(resourcesName)（\(requestInfo.idx)/\(requestInfo.count)）"
+            let itemProgress = "正在下载：\(resourcesName)（\(requestInfo.idx + 1)/\(requestInfo.count)）"
             // 更新 UI
             let downSpeed = "下载速度：\(self!.downloadSpeed.speed + "/秒")"
             self?.updateProgress(progressInfo: (progress, "下载进度", itemProgress, downSpeed))
@@ -464,16 +499,30 @@ private extension ViewController {
 // MARK: 解压zip文件的方法
 private extension ViewController {
     
-    func archiveUnzip(filePath: String, toDestination: String) {
-        SSZipArchive.unzipFile(atPath: filePath,
-                               toDestination: toDestination,
-                               progressHandler: {[weak self] (entry, zipInfo, entryNumber, total) in
-                                                
-//            self?.updateProgress(progress: Float(entryNumber) / Float(total), text: "正在解压")
-                                                
-        }) { (path, isSuccess, error) in
-            // 删除压缩包
-            try? FileManager.default.removeItem(atPath: filePath)
+    func archiveUnzip(archives: [YSSequenceArchive], toDestination: String, comlpetion: @escaping ()->()) {
+
+        let group = DispatchGroup()
+        
+        for model in archives {
+            group.enter()
+            
+            DispatchQueue.global().async {
+                let filePath = toDestination + "/\(model.name ?? "")" + ".\(model.extension ?? "")"
+                SSZipArchive.unzipFile(atPath: filePath, toDestination: toDestination, progressHandler: nil) { (path, isSuccess, error) in
+                    try? FileManager.default.removeItem(atPath: filePath)
+                    group.leave()
+                    
+                    if isSuccess {
+                        print("解压成功")
+                    }else {
+                        print("解压失败")
+                    }
+                }
+            }
+        }
+        
+        group.notify(queue: DispatchQueue.main) {
+            comlpetion()
         }
     }
 }
