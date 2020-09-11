@@ -32,9 +32,12 @@ class ViewController: UIViewController {
     
     override func viewDidLoad() {
         super.viewDidLoad()
-        setupUI()
-        loadData()
-        addObserver()
+//        setupUI()
+//        loadData()
+//        addObserver()
+        let download = FBDownloadManager.default
+        
+        print(download)
     }
     
     deinit {

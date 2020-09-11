@@ -13,7 +13,7 @@
 		9A0C4823250212510004A3D6 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 9A0C4821250212510004A3D6 /* LaunchScreen.storyboard */; };
 		9A0C4830250212F20004A3D6 /* FBSequenceModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A0C482B250212F20004A3D6 /* FBSequenceModel.swift */; };
 		9A0C4831250212F20004A3D6 /* FBSequenceImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A0C482C250212F20004A3D6 /* FBSequenceImageView.swift */; };
-		9A0C4832250212F20004A3D6 /* FBNetworkDownload.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A0C482D250212F20004A3D6 /* FBNetworkDownload.swift */; };
+		9A0C4832250212F20004A3D6 /* FBDownloadManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A0C482D250212F20004A3D6 /* FBDownloadManager.swift */; };
 		9A0C4833250212F20004A3D6 /* FBNetworkManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A0C482E250212F20004A3D6 /* FBNetworkManager.swift */; };
 		9A0C4834250212F20004A3D6 /* FBSequenceManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A0C482F250212F20004A3D6 /* FBSequenceManager.swift */; };
 		9A0C4836250213970004A3D6 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 9A0C4835250213970004A3D6 /* Main.storyboard */; };
@@ -36,7 +36,7 @@
 		9A0C4824250212510004A3D6 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		9A0C482B250212F20004A3D6 /* FBSequenceModel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FBSequenceModel.swift; sourceTree = "<group>"; };
 		9A0C482C250212F20004A3D6 /* FBSequenceImageView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FBSequenceImageView.swift; sourceTree = "<group>"; };
-		9A0C482D250212F20004A3D6 /* FBNetworkDownload.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FBNetworkDownload.swift; sourceTree = "<group>"; };
+		9A0C482D250212F20004A3D6 /* FBDownloadManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FBDownloadManager.swift; sourceTree = "<group>"; };
 		9A0C482E250212F20004A3D6 /* FBNetworkManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FBNetworkManager.swift; sourceTree = "<group>"; };
 		9A0C482F250212F20004A3D6 /* FBSequenceManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FBSequenceManager.swift; sourceTree = "<group>"; };
 		9A0C4835250213970004A3D6 /* Main.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; path = Main.storyboard; sourceTree = "<group>"; };
@@ -118,10 +118,10 @@
 			isa = PBXGroup;
 			children = (
 				9A0C482E250212F20004A3D6 /* FBNetworkManager.swift */,
-				9A0C482D250212F20004A3D6 /* FBNetworkDownload.swift */,
-				9A0C482C250212F20004A3D6 /* FBSequenceImageView.swift */,
+				9A0C482D250212F20004A3D6 /* FBDownloadManager.swift */,
 				9A0C482F250212F20004A3D6 /* FBSequenceManager.swift */,
 				9A0C482B250212F20004A3D6 /* FBSequenceModel.swift */,
+				9A0C482C250212F20004A3D6 /* FBSequenceImageView.swift */,
 			);
 			name = SourceFiles;
 			path = ../../SourceFiles;
@@ -252,7 +252,7 @@
 			files = (
 				9A0C4831250212F20004A3D6 /* FBSequenceImageView.swift in Sources */,
 				9A0C4833250212F20004A3D6 /* FBNetworkManager.swift in Sources */,
-				9A0C4832250212F20004A3D6 /* FBNetworkDownload.swift in Sources */,
+				9A0C4832250212F20004A3D6 /* FBDownloadManager.swift in Sources */,
 				9A3D8BB925077EE800EAE4DB /* Common.swift in Sources */,
 				9A0C4817250212500004A3D6 /* AppDelegate.swift in Sources */,
 				9A0C4830250212F20004A3D6 /* FBSequenceModel.swift in Sources */,
