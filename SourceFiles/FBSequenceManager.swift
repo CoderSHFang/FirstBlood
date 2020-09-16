@@ -67,6 +67,11 @@ extension FBSequenceManager {
             
         var models = [FBSequenceModel]()
         for imageName in imageNames {
+            
+            if imageName == ".DS_Store" {
+                continue
+            }
+            
             let model = FBSequenceModel()
             model.imageName = imageName
             model.directory = directory

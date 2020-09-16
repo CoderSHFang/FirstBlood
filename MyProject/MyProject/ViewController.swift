@@ -28,6 +28,9 @@ class ViewController: UIViewController {
     private var currentArchiveTuple: (allArchives: [[YSSequenceArchive]], paths: [String])?
     private lazy var downloadSpeed: (date: Date, lastRead: Int64, speed: String) = (Date(), 0, "0 KB")
     
+    private var downloadTaskModel: FBDownloadTaskModel?
+    private var resumeData: Data?
+    
     var downloadCompletion: (()->())?
     
     override func viewDidLoad() {
@@ -35,9 +38,75 @@ class ViewController: UIViewController {
 //        setupUI()
 //        loadData()
 //        addObserver()
-        let download = FBDownloadManager.default
+//        let download = FBDownloadManager.default
         
-        print(download)
+        download1()
+        download2()
+    }
+    
+    func download2() {
+     let urlString = "https://yunnto.oss-cn-shenzhen.aliyuncs.com/List/H5/sequence/dyc/loucengquanshi/1-3.zip"
+
+        _ = FBDownloadManager.default.downloadFile(urlString: urlString, progress: { (downloadProgress) in
+            let progress = Float(downloadProgress.totalBytesWritten) / Float(downloadProgress.totalBytesExpectedToWrite)
+            print("progress2: \(progress)")
+        }, destination: { (tmpURL, response) -> URL in
+            let path = NSSearchPathForDirectoriesInDomains(.cachesDirectory, .userDomainMask, true)[0]
+            let cachePath = (path as NSString).appendingPathComponent("1-3.zip")
+            let url = URL(fileURLWithPath: cachePath)
+            print("cachePath: \(url.path)")
+            return url
+        }) { (filePath, response, error) in
+            print("filePath: \(filePath)")
+        }
+        
+//        self.downloadTaskModel = downloadTaskModel
+    }
+    
+    func download1() {
+        let urlString = "https://yunnto.oss-cn-shenzhen.aliyuncs.com/List/H5/sequence/dyc/loucengquanshi/1-2.zip"
+        
+        _ = FBDownloadManager.default.downloadFile(urlString: urlString, progress: { (downloadProgress) in
+            let progress = Float(downloadProgress.totalBytesWritten) / Float(downloadProgress.totalBytesExpectedToWrite)
+            print("progress1: \(progress)")
+        }, destination: { (tmpURL, response) -> URL in
+            let path = NSSearchPathForDirectoriesInDomains(.cachesDirectory, .userDomainMask, true)[0]
+            let cachePath = (path as NSString).appendingPathComponent("1-2.zip")
+            let url = URL(fileURLWithPath: cachePath)
+            print("cachePath: \(url.path)")
+            return url
+        }) { (filePath, response, error) in
+            print("filePath: \(filePath)")
+        }
+        
+//        self.downloadTaskModel = downloadTaskModel
+    }
+    
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        
+//        if resumeData == nil {
+//            FBDownloadManager.default.cancelDownload(at: downloadTaskModel!) { (data) in
+//                self.resumeData = data
+//            }
+//
+//        }else {
+//            downloadTaskModel = FBDownloadManager.default.downloadFile(resumeData: resumeData!, progress: { (downloadProgress) in
+//                let progress = Float(downloadProgress.totalBytesWritten) / Float(downloadProgress.totalBytesExpectedToWrite)
+//                print("progress: \(progress)")
+//            }, destination: { (tmpURL, response) -> URL in
+//                let path = NSSearchPathForDirectoriesInDomains(.cachesDirectory, .userDomainMask, true)[0]
+//                let cachePath = (path as NSString).appendingPathComponent("1-2.zip")
+//                let url = URL(fileURLWithPath: cachePath)
+//                print("cachePath: \(url.path)")
+//                return url
+//            }) { (filePath, response, error) in
+//                print("filePath: \(filePath)")
+//            }
+//
+//            resumeData = nil
+//        }
+        
+        
     }
     
     deinit {
@@ -195,8 +264,8 @@ private extension ViewController {
         
         // 准备路径
         let louCengPath = (path as NSString).appendingPathComponent("louCeng")
-        let sanWeiPath = (path as NSString).appendingPathComponent("sanWei")
-        let manYouPath = (path as NSString).appendingPathComponent("manYou")
+//        let sanWeiPath = (path as NSString).appendingPathComponent("sanWei")
+//        let manYouPath = (path as NSString).appendingPathComponent("manYou")
         
 //        return ([louCengArchives, sanWeiArchives, manYouArchives],
 //                [louCengPath, sanWeiPath, manYouPath])

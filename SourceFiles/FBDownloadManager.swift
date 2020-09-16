@@ -5,8 +5,7 @@
 //  Created by Mac mini on 2020/9/1.
 //  Copyright © 2020 Mac mini. All rights reserved.
 //
-
-import Foundation
+import UIKit
 
 class FBDownloadBytesProgress {
     /// 表示自上次调用该方法后，接收到的数据字节数
@@ -19,10 +18,11 @@ class FBDownloadBytesProgress {
 
 class FBDownloadTaskModel {
     public lazy var progress = FBDownloadBytesProgress()
+    public var resumeData: Data?
     public var sessionTask: URLSessionTask?
     public var progressBlock: ((_ progress: FBDownloadBytesProgress)->())?
-    public var destinationBlock: ((_ tmpURL: URL, _ response: URLResponse)-> URL)?
-    public var completionBlock: ((_ response: URLResponse)->())?
+    public var destinationBlock: ((_ tmpURL: URL, _ response: URLResponse?)-> URL)?
+    public var completionBlock: ((_ filePath: String, _ response: URLResponse?, _ error: Error?)->())?
 }
 
 class FBDownloadManager: NSObject {
@@ -40,12 +40,34 @@ class FBDownloadManager: NSObject {
     // MARK: - 初始化
     private override init() {
         super.init()
-        
-        // 获取保存文件路径
-//        let path = NSSearchPathForDirectoriesInDomains(.cachesDirectory, .userDomainMask, true)[0]
-//        // 准备路径
-//        let savePath = (path as NSString).appendingPathComponent("1-2.zip")
-//        downloadFile(urlString: "https://yunnto.oss-cn-shenzhen.aliyuncs.com/List/H5/sequence/dyc/loucengquanshi/1-2.zip", savePath: savePath)
+        addObservers()
+    }
+    
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+    
+    private func addObservers() {
+        NotificationCenter.default.addObserver(self,
+                                               selector: #selector(applicationwillTerminate),
+                                               name: UIApplication.willTerminateNotification,
+                                               object: nil)
+        NotificationCenter.default.addObserver(self,
+                                               selector: #selector(didEnterBackground),
+                                               name: UIApplication.didEnterBackgroundNotification,
+                                               object: nil)
+        NotificationCenter.default.addObserver(self,
+                                               selector: #selector(willEnterForeground),
+                                               name: UIApplication.willEnterForegroundNotification,
+                                               object: nil)
+        NotificationCenter.default.addObserver(self,
+                                               selector: #selector(didBecomeActive),
+                                               name: UIApplication.didBecomeActiveNotification,
+                                               object: nil)
+        NotificationCenter.default.addObserver(self,
+                                               selector: #selector(willResignActive),
+                                               name: UIApplication.willResignActiveNotification,
+                                               object: nil)
     }
     
     /// 判断文件是否存在
@@ -54,15 +76,99 @@ class FBDownloadManager: NSObject {
     }
 }
 
+@objc private extension FBDownloadManager {
+    /// 即将进入前台
+    func willEnterForeground() {
+        print("willEnterForeground: 即将进入前台")
+    }
+    
+    /// 程序从后台进入激活
+    func didBecomeActive() {
+        print("didBecomeActive: 程序从后台进入激活")
+        
+        // 开始任务下载
+        for model in downloadTasks {
+            guard let resumeData = model.resumeData else {
+                continue
+            }
+            
+            model.sessionTask = session.downloadTask(withResumeData: resumeData)
+            model.sessionTask?.resume()
+        }
+    }
+    
+    /// 程序即将从前台退出活动
+    func willResignActive() {
+        print("willResignActive: 程序即将从前台退出活动")
+        
+        // 停止任务下载
+        for model in downloadTasks {
+            guard let task = model.sessionTask,
+                let downloadTask = task as? URLSessionDownloadTask
+                else {
+                continue
+            }
+            
+            downloadTask.cancel { (data) in
+                model.resumeData = data
+            }
+        }
+    }
+    
+    /// 进入后台
+    func didEnterBackground() {
+        print("didEnterBackground: 进入后台")
+    }
+    
+    /// 程序即将终止
+    func applicationwillTerminate() {
+        print("applicationwillTerminate: 程序即将终止")
+    }
+}
+
 // MARK: 下载的方法
 extension FBDownloadManager {
+    /// 取消下载
+    /// - Parameter downloadTaskModel: 下载任务的模型
+    /// - Parameter completionHandler: 完成回调
+    /// - Returns: resumeData
+    func cancelDownload(at downloadTaskModel: FBDownloadTaskModel,
+                        byProducingResumeData completionHandler: @escaping (Data?) -> Void) {
+        let address1 = Unmanaged.passUnretained(downloadTaskModel).toOpaque()
+        
+        let completion = { (resumeData: Data?)->() in
+            downloadTaskModel.resumeData = resumeData
+            completionHandler(resumeData)
+        }
+        
+        for model in downloadTasks {
+            let address2 = Unmanaged.passUnretained(model).toOpaque()
+            
+            if address1 == address2 {
+                guard let downloadTask = model.sessionTask as? URLSessionDownloadTask else {
+                    return
+                }
+                
+                downloadTask.cancel(byProducingResumeData: completion)
+                
+                break
+            }
+        }
+    }
+    
+    /// 下载文件的方法
+    /// - Parameters:
+    ///   - urlString: urlString
+    ///   - progress: 下载进度
+    ///   - destination: 保存文件的路径
+    ///   - completion: 完成回调
     func downloadFile(urlString: String,
                       progress: @escaping (_ progress: FBDownloadBytesProgress)->(),
-                      destination: @escaping (_ tmpURL: URL, _ response: URLResponse)-> URL,
-                      completion: @escaping (_ response: URLResponse)->()) {
+                      destination: @escaping (_ tmpURL: URL, _ response: URLResponse?)-> URL,
+                      completion: @escaping (_ filePath: String, _ response: URLResponse?, _ error: Error?)->()) -> FBDownloadTaskModel? {
         guard let url = URL(string: urlString) else {
             print("无效 urlString")
-            return
+            return nil
         }
         
         // 创建任务
@@ -77,6 +183,37 @@ extension FBDownloadManager {
         
         // 开启任务
         downloadTask.sessionTask?.resume()
+        
+        return downloadTask
+    }
+    
+    /// 断点续传下载文件的方法
+    /// - Parameters:
+    ///   - resumeData: 恢复数据
+    ///   - progress: 下载进度
+    ///   - destination: 保存文件的路径
+    ///   - completion: 完成回调
+    func downloadFile(resumeData: Data,
+                      progress: @escaping (_ progress: FBDownloadBytesProgress)->(),
+                      destination: @escaping (_ tmpURL: URL, _ response: URLResponse?)-> URL,
+                      completion: @escaping (_ filePath: String, _ response: URLResponse?, _ error: Error?)->()) -> FBDownloadTaskModel? {
+        
+        var downloadTask: FBDownloadTaskModel?
+        for model in downloadTasks {
+            if resumeData != model.resumeData {
+                continue
+            }
+            
+            model.sessionTask = session.downloadTask(withResumeData: resumeData)
+            model.progressBlock = progress
+            model.destinationBlock = destination
+            model.completionBlock = completion
+            model.sessionTask?.resume()
+            downloadTask = model
+            break
+        }
+        
+        return downloadTask
     }
 }
 
@@ -89,25 +226,19 @@ extension FBDownloadManager: URLSessionDownloadDelegate {
         
         for model in downloadTasks {
             if model.sessionTask == downloadTask {
+                // 保存文件
+                let cacheURL = model.destinationBlock?(location, downloadTask.response)
+                let cachePath = cacheURL?.path ?? ""
+                try? FileManager.default.moveItem(atPath: location.path, toPath: cachePath)
                 
+                // 完成回调
+                model.completionBlock?(cachePath, downloadTask.response, downloadTask.error)
                 break
             }
         }
-        
-        print("下载完成: ", location)
-        
-        let fileName = downloadTask.response?.suggestedFilename ?? ""
-        
-        // 获取保存文件路径
-        let path = NSSearchPathForDirectoriesInDomains(.cachesDirectory, .userDomainMask, true)[0]// 准备路径
-        let louCengPath = (path as NSString).appendingPathComponent(fileName)
-        
-        // 保存文件
-        try? FileManager.default.moveItem(atPath: location.path, toPath: louCengPath)
     }
     
     // 下载进度
-    
     public func urlSession(_ session: URLSession,
                            downloadTask: URLSessionDownloadTask,
                            didWriteData bytesWritten: Int64,
@@ -123,10 +254,6 @@ extension FBDownloadManager: URLSessionDownloadDelegate {
                 break
             }
         }
-        
-        let progress = Float(totalBytesWritten) / Float(totalBytesExpectedToWrite)
-        
-        print(String(format: "下载进度: %.2f", progress))
     }
     
     // 恢复下载时的进度
