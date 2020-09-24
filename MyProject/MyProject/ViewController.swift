@@ -14,6 +14,7 @@ import AFNetworking
 
 class ViewController: UIViewController {
     private var webView: WKWebView?
+    private var imageView: UIImageView?
     
     private lazy var backView = UIImageView(image: UIImage(named: "download_back_icon"))
     private lazy var iconView = UIImageView(image: UIImage(named: "download_title_icon"))
@@ -40,9 +41,17 @@ class ViewController: UIViewController {
 //        addObserver()
 //        let download = FBDownloadManager.default
         
-        download1()
-        download2()
+//        download1()
+//        download2()
+        
+        let windown = UIApplication.shared.windows[0]
+        windown.touchIcons = [UIImage(named: "yk_yuanquan_fill_1"),
+                                             UIImage(named: "yk_yuanquan_fill_2"),
+                                             UIImage(named: "yk_yuanquan_fill_3"),
+                                             UIImage(named: "yk_yuanquan_fill_4"),
+                                             UIImage(named: "yk_yuanquan_fill_5")]
     }
+    
     
     func download2() {
      let urlString = "https://yunnto.oss-cn-shenzhen.aliyuncs.com/List/H5/sequence/dyc/loucengquanshi/1-3.zip"
@@ -181,33 +190,51 @@ private extension ViewController {
                         self?.downloadAndUnzip(models: newModels)
                     }else {
                         print("archiveInfo 无更新")
-                        var progress: Float = 0.0
-                        Timer.scheduledTimer(withTimeInterval: 0.01, repeats: true) { [weak self] (timer) in
-                            
-                            if progress >= 1.0 {
-                                timer.invalidate()
-                                self?.updateProgress(progressInfo: (1.0, "加载完成", "", ""))
-                                DispatchQueue.main.asyncAfter(deadline: DispatchTime.now() + 1) {
-                                    self?.downloadCompletion?()
-                                    self?.dismiss(animated: true, completion: nil)
-                                }
-                                return
-                            }else {
-                                self?.updateProgress(progressInfo: (progress, "正在加载本地资源", "", ""))
-                            }
-                            
-                            
-                            progress += 0.01
-                        }
+                        self?.readLocalResourcesTip()
                     }
                 }
+            }else {
+                // 1. 检查本地是否有 archiveInfo
+                guard let data = NSData(contentsOfFile: archiveInfoPath),
+                    let _ = try? JSONSerialization.jsonObject(with: data as Data, options: []) as? [[String: Any]] else {
+                        print("本地没有 archiveInfo")
+                        FBAlertView.alertController(withTitle: "提示",
+                                                    message: "请链接您的网络下载资源",
+                                                    actionTitle: "确定",
+                                                    ctrl: self!,
+                                                    finish: nil)
+                    return
+                }
+                
+                self?.readLocalResourcesTip()
             }
+        }
+    }
+    
+    /// 读取本地资源的提示
+    func readLocalResourcesTip() {
+        var progress: Float = 0.0
+        Timer.scheduledTimer(withTimeInterval: 0.01, repeats: true) { [weak self] (timer) in
+            
+            if progress >= 1.0 {
+                timer.invalidate()
+                self?.updateProgress(progressInfo: (1.0, "加载完成", "", ""))
+                DispatchQueue.main.asyncAfter(deadline: DispatchTime.now() + 1) {
+                    self?.downloadCompletion?()
+                    self?.dismiss(animated: true, completion: nil)
+                }
+                return
+            }else {
+                self?.updateProgress(progressInfo: (progress, "正在加载本地资源", "", ""))
+            }
+            
+            progress += 0.01
         }
     }
     
     func loadArchiveInfo(comlpetion: @escaping (_ networkModels: [YSSequenceArchive], _ isSuccess: Bool)->()) {
         let urlString = "http://list.yunnto.cn/api/app/getUploadImgUrl"
-        let param = ["project_id": 6]
+        let param = ["project_id": 36]
         FBNetworkManager.shared.request(method: .POST, URLString: urlString, parameters: param) { (json, isSuccess) in
             
             if isSuccess {
@@ -234,18 +261,11 @@ private extension ViewController {
     
     /// 对压缩包进行分类
     func classifyArchive(models: [YSSequenceArchive]) -> (allArchives: [[YSSequenceArchive]], paths: [String]) {
-        // 准备分类好的模型数组
-        var louCengArchives = [YSSequenceArchive]()
         var sanWeiArchives = [YSSequenceArchive]()
         var manYouArchives = [YSSequenceArchive]()
         
         // 资源分类
         for model in models {
-            // 楼层诠释
-            if model.type == 1 {
-                louCengArchives.append(model)
-                continue
-            }
             
             // 三维沙盘
             if model.type == 2 {
@@ -260,16 +280,8 @@ private extension ViewController {
             }
         }
         
-        let path = NSSearchPathForDirectoriesInDomains(.cachesDirectory, .userDomainMask, true)[0]
-        
-        // 准备路径
-        let louCengPath = (path as NSString).appendingPathComponent("louCeng")
-//        let sanWeiPath = (path as NSString).appendingPathComponent("sanWei")
-//        let manYouPath = (path as NSString).appendingPathComponent("manYou")
-        
-//        return ([louCengArchives, sanWeiArchives, manYouArchives],
-//                [louCengPath, sanWeiPath, manYouPath])
-        return ([louCengArchives], [louCengPath])
+        return ([sanWeiArchives, manYouArchives],
+                [sanWeiPath, manYouPath])
     }
 }
 
@@ -291,6 +303,10 @@ private extension ViewController {
             
             // 解压
             for (idx, archives) in (tuple.allArchives).enumerated() {
+                
+                if archives.count == 0 {
+                    continue
+                }
                 
                 group.enter()
                 
@@ -333,6 +349,11 @@ private extension ViewController {
         let semaphoreSignal = DispatchSemaphore(value: 1)
         
         for (idx, archives) in allArchives.enumerated() {
+            
+            if archives.count == 0 {
+                continue
+            }
+            
             let op = BlockOperation { [weak self] in
                 semaphoreSignal.wait()
                 
@@ -416,28 +437,10 @@ private extension ViewController {
         downloadSpeed.date = Date()
         
         let task = FBNetworkManager.shared.downloadTask(with: request, progress: {[weak self] (downloadProgress) in
-            // 计算下载速度
-            let currentDate = Date()
-            let time = Int64(currentDate.timeIntervalSince(self!.downloadSpeed.date))
-            if time >= 1 {
-                let speed = (downloadProgress.completedUnitCount - self!.downloadSpeed.lastRead) / time
-                
-                let countStyle: ByteCountFormatter.CountStyle = speed > 1024 ? .file : .binary
-                
-                self!.downloadSpeed.speed = ByteCountFormatter.string(fromByteCount: speed, countStyle: countStyle)
-                self!.downloadSpeed.lastRead = downloadProgress.completedUnitCount
-                self!.downloadSpeed.date = currentDate
-            }
-            
-            // 计算下载进度
-            let progress = 1.0 * Float(downloadProgress.completedUnitCount) / Float(downloadProgress.totalUnitCount)
-            let resourcesName = requestInfo.model.type == 1 ? "楼层诠释"
-                                : (requestInfo.model.type == 2 ? "三维沙盘"
-                                                                : "园林漫游")
-            let itemProgress = "正在下载：\(resourcesName)（\(requestInfo.idx + 1)/\(requestInfo.count)）"
-            // 更新 UI
-            let downSpeed = "下载速度：\(self!.downloadSpeed.speed + "/秒")"
-            self?.updateProgress(progressInfo: (progress, "下载进度", itemProgress, downSpeed))
+            self?.calculateDownloadProgress(downloadProgress: downloadProgress,
+                                            type: requestInfo.model.type,
+                                            idx: requestInfo.idx,
+                                            count: requestInfo.count)
             
         }, destination: { (tmpURL, response) -> URL in
             
@@ -472,7 +475,6 @@ private extension ViewController {
                 // 所有的操作都已完成
                 if requestInfo.queue.operations.count == 0 {
                     comlpetion()
-                    
                 }
                 
                 requestInfo.semaphoreSignal.signal()
@@ -501,27 +503,10 @@ private extension ViewController {
         downloadSpeed.date = Date()
         
         let task = FBNetworkManager.shared.downloadTask(withResumeData: resumeData, progress: { [weak self] (downloadProgress) in
-            // 计算下载速度
-            let currentDate = Date()
-            let time = Int64(currentDate.timeIntervalSince(self!.downloadSpeed.date))
-            if time >= 1 {
-                let speed = (downloadProgress.completedUnitCount - self!.downloadSpeed.lastRead) / time
-                let countStyle: ByteCountFormatter.CountStyle = speed > 1024 ? .file : .binary
-                
-                self!.downloadSpeed.speed = ByteCountFormatter.string(fromByteCount: speed, countStyle: countStyle)
-                self!.downloadSpeed.lastRead = downloadProgress.completedUnitCount
-                self!.downloadSpeed.date = currentDate
-            }
-            
-            // 计算下载进度
-            let progress = 1.0 * Float(downloadProgress.completedUnitCount) / Float(downloadProgress.totalUnitCount)
-            let resourcesName = requestInfo.model.type == 1 ? "楼层诠释"
-                                : (requestInfo.model.type == 2 ? "三维沙盘"
-                                                                : "园林漫游")
-            let itemProgress = "正在下载：\(resourcesName)（\(requestInfo.idx + 1)/\(requestInfo.count)）"
-            // 更新 UI
-            let downSpeed = "下载速度：\(self!.downloadSpeed.speed + "/秒")"
-            self?.updateProgress(progressInfo: (progress, "下载进度", itemProgress, downSpeed))
+            self?.calculateDownloadProgress(downloadProgress: downloadProgress,
+                                            type: requestInfo.model.type,
+                                            idx: requestInfo.idx,
+                                            count: requestInfo.count)
             
         }, destination: { (tmpURL, response) -> URL in
             // 2.3 创建一个空的文件夹
@@ -565,6 +550,43 @@ private extension ViewController {
         
         currentDownloadTask = task
         task.resume()
+    }
+    
+    /// 计算下载进度
+    /// - Parameters:
+    ///   - downloadProgress: Progress
+    ///   - type: 下载资源的类型
+    ///   - idx: 下载资源的索引
+    ///   - count: 下载一组资源的个数
+    func calculateDownloadProgress(downloadProgress: Progress,
+                                   type: Int,
+                                   idx: Int,
+                                   count: Int) {
+        // 计算下载速度
+        let currentDate = Date()
+        let time = Int64(currentDate.timeIntervalSince(downloadSpeed.date))
+        if time >= 1 {
+            let speed = (downloadProgress.completedUnitCount - downloadSpeed.lastRead) / time
+            
+            let countStyle: ByteCountFormatter.CountStyle = speed > 1024 ? .file : .binary
+            
+            downloadSpeed.speed = ByteCountFormatter.string(fromByteCount: speed, countStyle: countStyle)
+            downloadSpeed.lastRead = downloadProgress.completedUnitCount
+            downloadSpeed.date = currentDate
+        }
+        
+        // 计算下载进度
+        let progress = 1.0 * Float(downloadProgress.completedUnitCount) / Float(downloadProgress.totalUnitCount)
+        
+        var resourcesName = ""
+        if type == 2 {
+            resourcesName = "三维沙盘"
+        }
+        
+        let itemProgress = "正在下载：\(resourcesName)（\(idx + 1)/\(count)）"
+        // 更新 UI
+        let downSpeed = "下载速度：\(downloadSpeed.speed + "/秒")"
+        updateProgress(progressInfo: (progress, "下载进度", itemProgress, downSpeed))
     }
 }
 
@@ -622,13 +644,14 @@ private extension ViewController {
     func setupUI() {
         setupLeftUI()
         setupWebView()
+//        setupImageView()
     }
     
     func setupLeftUI() {
         downloadProgressView.tintColor = .white
         downloadProgressView.progress = 0.0
         downloadProgressLabel.textColor = .white
-        downloadProgressLabel.text = "下载中...0%"
+        downloadProgressLabel.text = "正在下载...0%"
         downloadItemLabel.font = UIFont.systemFont(ofSize: 12)
         downloadItemLabel.textColor = .white
         downloadSpeedLabel.font = UIFont.systemFont(ofSize: 12)
@@ -679,6 +702,22 @@ private extension ViewController {
         }
     }
     
+    func setupImageView() {
+        imageView = UIImageView(image: UIImage(named: "山钦湾封面"))
+        imageView?.layer.cornerRadius = 12
+        imageView?.layer.masksToBounds = true
+        imageView?.layer.borderWidth = 0.7
+        imageView?.layer.borderColor = UIColor.white.cgColor
+        
+        view.addSubview(imageView!)
+        imageView?.snp.makeConstraints({ (make) in
+            make.top.equalTo(view).offset(20)
+            make.right.equalTo(view).offset(-20)
+            make.bottom.equalTo(view).offset(-20)
+            make.width.equalTo(imageView!.snp.height).multipliedBy(0.67)
+        })
+    }
+    
     func setupWebView() {
         // 创建WKWebViewConfiguration
         let configuration = WKWebViewConfiguration()
@@ -696,6 +735,10 @@ private extension ViewController {
         webView = WKWebView(frame: UIScreen.main.bounds, configuration: configuration)
         webView?.isOpaque = false
         webView?.backgroundColor = .black
+        webView?.layer.cornerRadius = 12
+        webView?.layer.masksToBounds = true
+        webView?.layer.borderWidth = 0.7
+        webView?.layer.borderColor = UIColor.white.cgColor
         
         loadWebView(fileName: "download")
         
@@ -704,7 +747,7 @@ private extension ViewController {
             make.top.equalTo(view).offset(20)
             make.right.equalTo(view).offset(-20)
             make.bottom.equalTo(view).offset(-20)
-            make.width.equalTo(380)
+            make.width.equalTo(webView!.snp.height).multipliedBy(0.67)
         })
     }
     
