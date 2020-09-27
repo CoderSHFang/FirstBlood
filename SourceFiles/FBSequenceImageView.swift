@@ -67,11 +67,14 @@ public class FBSequenceImageView: UIImageView {
     
     private var playMode = FBPlayMode.serial
     
-    private var currentOffset = CGPoint.zero
+    private var currentSlideOffset = CGPoint.zero
+    
+    private var scaleCenterPoint = CGPoint.zero
     
     private var playCompletion: (()->())?
     
     private var restoreProgress: ((_ index: Int)->())?
+    
 }
 
 // MARK: 初始设置
@@ -85,10 +88,10 @@ extension FBSequenceImageView {
         isUserInteractionEnabled = true
         
         let panGes = UIPanGestureRecognizer(target: self, action: #selector(panGesture))
+        panGes.maximumNumberOfTouches = 1
         addGestureRecognizer(panGes)
         
         let pinchGes = UIPinchGestureRecognizer(target: self, action: #selector(pinchGesture))
-        pinchGes.cancelsTouchesInView = false
         addGestureRecognizer(pinchGes)
     }
     
@@ -100,6 +103,7 @@ extension FBSequenceImageView {
                                        repeats: true)
         myTimer?.fireDate = Date.distantFuture
     }
+    
 }
 
 // MARK: 监听方法
@@ -112,11 +116,18 @@ extension FBSequenceImageView {
     }
     
     func pinchGesture(gesture: UIPinchGestureRecognizer) {
+        
+        if gesture.numberOfTouches < 2 {
+            return
+        }
+        
         let v = gesture.view
         let scale = gesture.scale
 
         // 放大情况
         if scale > 1.0 {
+            adjustAnchorPoint(for: gesture)
+            
             if totalScale > maxScale {
                 transform = CGAffineTransform(scaleX: 2.0, y: 2.0)
                 return
@@ -131,7 +142,7 @@ extension FBSequenceImageView {
             }
         }
 
-        if gesture.state == .began || gesture.state == .changed {
+        if gesture.state == .changed {
             guard var transform = v?.transform.scaledBy(x: gesture.scale, y: gesture.scale) else {
                 return
             }
@@ -141,6 +152,22 @@ extension FBSequenceImageView {
             v?.transform = transform
             gesture.scale = 1
             totalScale *= scale
+        }
+    }
+    
+    func adjustAnchorPoint(for gesture: UIGestureRecognizer) {
+        if gesture.state == .began {
+            guard let v = gesture.view else {
+                return
+            }
+            
+            let location = gesture.location(in: v)
+            let anchorPoint = CGPoint(x: location.x / v.bounds.width, y: location.y / v.bounds.height)
+            print(anchorPoint)
+            v.layer.anchorPoint = anchorPoint
+            
+            let superLocation = gesture.location(in: superview)
+            v.center = superLocation
         }
     }
     
@@ -161,9 +188,9 @@ extension FBSequenceImageView {
     }
     
     func fingerMoved(location: CGPoint) {
-        let differ = Int(abs(location.x - currentOffset.x))
+        let differ = Int(abs(location.x - currentSlideOffset.x))
         
-        if currentOffset.x > location.x {
+        if currentSlideOffset.x > location.x {
             for i in 0 ..< differ {
                 if (i % 4) == 0 {
                     switchImage(mode: .serial, cancel: nil) { [weak self] in
@@ -173,7 +200,7 @@ extension FBSequenceImageView {
             }
         }
         
-        if currentOffset.x < location.x {
+        if currentSlideOffset.x < location.x {
             for i in 0 ..< differ {
                 if (i % 4) == 0 {
                     switchImage(mode: .reversed, cancel: nil) { [weak self] in
@@ -185,16 +212,16 @@ extension FBSequenceImageView {
         
         delegate?.sequenceImageView?(self, didFingerSlide: location)
         
-        currentOffset = location
+        currentSlideOffset = location
     }
     
     func fingerBegan(location: CGPoint) {
-        currentOffset = location
+        currentSlideOffset = location
         delegate?.sequenceImageView?(self, didFingerBeganSlide: location)
     }
     
     func fingerEnded(location: CGPoint) {
-        currentOffset = location
+        currentSlideOffset = location
         delegate?.sequenceImageView?(self, didFingerEndSlide: location)
     }
 }
