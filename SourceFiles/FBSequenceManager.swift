@@ -11,30 +11,26 @@ import UIKit
 public class FBSequenceManager {
     // MARK: - 属性
     /// 序列图管理单例
-    static let shared = FBSequenceManager()
+    public static let shared = FBSequenceManager()
     
-    /// 序列图素材的 bundle
-    lazy var bundle: Bundle? = {
-        guard let path = Bundle.main.path(forResource: "FBSequenceImage.bundle", ofType: nil) else {
-            return nil
-        }
-        return Bundle(path: path)
-    }()
-    
-    /// 当前目录名
-    var currentDirectoryName: String?
+    /// 当前序列图的目录名
+    public var currentDirectoryName: String?
     
     // MARK: - 初始化
     private init() {}
 }
 
 // MARK: - 加载序列帧图的方法
-extension FBSequenceManager {
+public extension FBSequenceManager {
     /// 加载 FBSequenceImage.bundle 中序列图的方法
+    /// - Parameter bundle: Bundle
     /// - Parameter pathName: FBSequenceImage.bundle 下的文件名或者文件路径
     /// - Returns: 模型数组
-    func loadBundleSequenceImage(pathName: String) -> [FBSequenceModel]? {
-        guard let directory =  bundle?.path(forResource: pathName, ofType: nil)
+    func loadBundleSequenceImage(at bundle: Bundle,
+                                 pathName: String)
+        ->
+        [FBSequenceModel]? {
+        guard let directory =  bundle.path(forResource: pathName, ofType: nil)
             else {
             return nil
         }
@@ -61,7 +57,8 @@ extension FBSequenceManager {
     /// - Returns: 模型数组
     func sortSequenceImage(imageNames: inout [String],
                            directory: String)
-        -> [FBSequenceModel] {
+        ->
+        [FBSequenceModel] {
             
         imageNames.sort()
             
@@ -77,29 +74,58 @@ extension FBSequenceManager {
             model.directory = directory
             models.append(model)
         }
+            
+        currentDirectoryName = directory
         
         return models
     }
-    
-    /// 加载点位图标与坐标的方法
+}
+
+// MARK: 加载坐标球的方法
+public extension FBSequenceManager {
+    /// 从 Bundle 中加载点位图标与坐标的方法
     /// - Parameters:
-    ///   - iconPath: FBSequenceImage.bundle 下点位图标的文件名或者路径
-    ///   - pointPath: FBSequenceImage.bundle 下坐标点的文件名或者路径，FBSequenceImage 下的坐标点的文件只能是 json 文件
+    ///   - bundle: Bundle
+    ///   - iconPath: bundle 下点位图标的文件名或者路径
+    ///   - pointPath: bundle 下坐标点的文件名或者路径，FBSequenceImage 下的坐标点的文件只能是 json 文件
     ///   - containerSize: 点位图标父视图的大小，默认是屏幕的宽高
     ///   - sourceSize: 点位图标是以某个宽高去适配的，默认是 1024 * 768
     /// - Returns: 返回一个元组，(获取的图像, 建议设置的图像的大小, [坐标点])
-    func loadPositionIcon(iconPath: String,
-                          pointPath: String,
-                          _ containerSize: CGSize = UIScreen.main.bounds.size,
-                          _ sourceSize: CGSize = CGSize(width: 1024, height: 768))
+    func loadBundlePositionIcon(at bundle: Bundle,
+                                iconPath: String,
+                                pointPath: String,
+                                _ containerSize: CGSize = UIScreen.main.bounds.size,
+                                _ sourceSize: CGSize = CGSize(width: 1024, height: 768))
         ->
         (image: UIImage?, targerSize: CGSize, points: [CGPoint])
     {
         
-        guard let imageFilePath = bundle?.path(forResource: iconPath, ofType: nil),
-            let imageData = try? Data(contentsOf: URL(fileURLWithPath: imageFilePath)),
+        guard let imageFilePath = bundle.path(forResource: iconPath, ofType: nil),
+            let pointFilePath = bundle.path(forResource: pointPath, ofType: nil)
+        else {
+            return (nil, CGSize.zero, [CGPoint.zero])
+        }
+        
+        return loadCachesPositionIcon(imageFilePath: imageFilePath,
+                                      pointFilePath: pointFilePath)
+    }
+    
+    /// 从缓存中加载点位图标与坐标的方法
+    /// - Parameters:
+    ///   - imageFilePath: 点位图标的文件名或者路径
+    ///   - pointFilePath: 坐标点的文件名或者路径，FBSequenceImage 下的坐标点的文件只能是 json 文件
+    ///   - containerSize: 点位图标父视图的大小，默认是屏幕的宽高
+    ///   - sourceSize: 点位图标是以某个宽高去适配的，默认是 1024 * 768
+    /// - Returns: 返回一个元组，(获取的图像, 建议设置的图像的大小, [坐标点])
+    func loadCachesPositionIcon(imageFilePath: String,
+                                pointFilePath: String,
+                                _ containerSize: CGSize = UIScreen.main.bounds.size,
+                                _ sourceSize: CGSize = CGSize(width: 1024, height: 768))
+        ->
+        (image: UIImage?, targerSize: CGSize, points: [CGPoint])
+    {
+        guard let imageData = try? Data(contentsOf: URL(fileURLWithPath: imageFilePath)),
             let image = UIImage(data: imageData),
-            let pointFilePath = bundle?.path(forResource: pointPath, ofType: nil),
             let pointData = try? Data(contentsOf: URL(fileURLWithPath: pointFilePath)),
             let pointArr = try? JSONSerialization.jsonObject(with: pointData, options: []) as? [[String: CGFloat]]
         else {
@@ -108,7 +134,7 @@ extension FBSequenceManager {
         
         var size = CGSize.zero
         
-        if iconPath.hasSuffix(".gif") {
+        if imageFilePath.hasSuffix(".gif") {
             print("是 gif 图，路径：\(imageFilePath)")
             let width: CGFloat = 120
             let height = width / (size.width / size.height)
@@ -135,5 +161,4 @@ extension FBSequenceManager {
         return (image, size, points)
     }
 }
-
 

@@ -10,22 +10,22 @@ import UIKit
 
 public class FBSequenceImageView: UIImageView {
     // MARK: 初始化方法
-    override init(frame: CGRect) {
+    public override init(frame: CGRect) {
         super.init(frame: frame)
         initialization()
     }
     
-    required init?(coder: NSCoder) {
+    public required init?(coder: NSCoder) {
         super.init(coder: coder)
         initialization()
     }
     
-    override init(image: UIImage?) {
+    public override init(image: UIImage?) {
         super.init(image: image)
         initialization()
     }
     
-    override init(image: UIImage?, highlightedImage: UIImage?) {
+    public override init(image: UIImage?, highlightedImage: UIImage?) {
         super.init(image: image, highlightedImage: highlightedImage)
         initialization()
     }
@@ -35,12 +35,15 @@ public class FBSequenceImageView: UIImageView {
         myTimer = nil
     }
     
-    // MARK: 属性
-    private var currentOffset = CGPoint.zero
+    // MARK: 属性 Serial
+    public enum FBPlayMode {
+        case serial
+        case reversed
+    }
     
-    var  currentSequences: [FBSequenceModel]? {
+    public var  currentSequences: [FBSequenceModel]? {
         didSet {
-            if currentSequences?.count == 0 {
+            if currentSequences?.count ?? 0 == 0 {
                 return
             }
             
@@ -48,28 +51,48 @@ public class FBSequenceImageView: UIImageView {
         }
     }
     
-    var myTimer: Timer?
+    public var myTimer: Timer?
     
-    var timeInterval: TimeInterval = 1 / 30
+    public var timeInterval: TimeInterval = 1.0 / 30.0
     
-    var currentIndex = 0
+    public var currentIndex = 0
     
-    weak var delegate: FBSequenceImageViewDelegate?
+    public weak var delegate: FBSequenceImageViewDelegate?
+    
+    public var totalScale: CGFloat = 1.0
+    
+    public let maxScale: CGFloat = 2.0
+    
+    public let minScale: CGFloat = 1.0
+    
+    private var playMode = FBPlayMode.serial
+    
+    private var currentOffset = CGPoint.zero
+    
+    private var playCompletion: (()->())?
+    
+    private var restoreProgress: ((_ index: Int)->())?
 }
 
 // MARK: 初始设置
-private extension FBSequenceImageView {
-    func initialization() {
+extension FBSequenceImageView {
+    private func initialization() {
         addGesture()
         addTimer()
     }
     
-    func addGesture() {
+    private func addGesture() {
         isUserInteractionEnabled = true
-        addGestureRecognizer(UIPanGestureRecognizer(target: self, action: #selector(panGesture)))
+        
+        let panGes = UIPanGestureRecognizer(target: self, action: #selector(panGesture))
+        addGestureRecognizer(panGes)
+        
+        let pinchGes = UIPinchGestureRecognizer(target: self, action: #selector(pinchGesture))
+        pinchGes.cancelsTouchesInView = false
+        addGestureRecognizer(pinchGes)
     }
     
-    func addTimer() {
+    private func addTimer() {
         myTimer = Timer.scheduledTimer(timeInterval: animationDuration,
                                        target: self,
                                        selector: #selector(updateTime),
@@ -82,11 +105,43 @@ private extension FBSequenceImageView {
 // MARK: 监听方法
 @objc private extension FBSequenceImageView {
     func updateTime() {
-        if currentIndex == 0 {
-            stopAnimatImages()
+        switchImage(mode: playMode, cancel: { [weak self] in
+            self?.stopAnimatImages()
+            self?.playCompletion?()
+        }, completion: nil)
+    }
+    
+    func pinchGesture(gesture: UIPinchGestureRecognizer) {
+        let v = gesture.view
+        let scale = gesture.scale
+
+        // 放大情况
+        if scale > 1.0 {
+            if totalScale > maxScale {
+                transform = CGAffineTransform(scaleX: 2.0, y: 2.0)
+                return
+            }
         }
-        
-        switchImage(isPlus: true, completion: nil)
+
+        // 缩小情况
+        if scale <= 1.0 {
+            if totalScale < minScale {
+                transform = CGAffineTransform(scaleX: 1.0, y: 1.0)
+                return
+            }
+        }
+
+        if gesture.state == .began || gesture.state == .changed {
+            guard var transform = v?.transform.scaledBy(x: gesture.scale, y: gesture.scale) else {
+                return
+            }
+            
+            if transform.a <= 1.0 { transform.a = 1.0 }
+            if transform.d <= 1.0 { transform.d = 1.0 }
+            v?.transform = transform
+            gesture.scale = 1
+            totalScale *= scale
+        }
     }
     
     func panGesture(gesture: UIPanGestureRecognizer) {
@@ -111,7 +166,7 @@ private extension FBSequenceImageView {
         if currentOffset.x > location.x {
             for i in 0 ..< differ {
                 if (i % 4) == 0 {
-                    switchImage(isPlus: true) {[weak self] in
+                    switchImage(mode: .serial, cancel: nil) { [weak self] in
                         self?.delegate?.sequenceImageView?(self!, didFingerLeftSlide: location)
                     }
                 }
@@ -121,7 +176,7 @@ private extension FBSequenceImageView {
         if currentOffset.x < location.x {
             for i in 0 ..< differ {
                 if (i % 4) == 0 {
-                    switchImage(isPlus: false) {[weak self] in
+                    switchImage(mode: .reversed, cancel: nil) { [weak self] in
                         self?.delegate?.sequenceImageView?(self!, didFingerRightSlide: location)
                     }
                 }
@@ -144,10 +199,14 @@ private extension FBSequenceImageView {
     }
 }
 
-extension FBSequenceImageView {
+// MARK: 设置图像的方法
+public extension FBSequenceImageView {
     /// 开始播放序列图
-    func startAnimatImages() {
+    func startAnimatImages(playMode: FBPlayMode, completion: (()->())?) {
         if myTimer?.isValid == false { return }
+        playCompletion = completion
+        self.playMode = playMode
+        isUserInteractionEnabled = false
         myTimer?.fireDate = Date()
     }
     
@@ -155,34 +214,44 @@ extension FBSequenceImageView {
     func stopAnimatImages() {
         if myTimer?.isValid == false { return }
         myTimer?.fireDate = Date.distantFuture
+        isUserInteractionEnabled = true
+    }
+    
+    /// 将当前序列图恢复到第一张
+    func restoreCurrentImages(progress: ((_ index: Int)->())?, completion: (()->())?) {
+        restoreProgress = progress
+        
+        let result = ((currentSequences?.count ?? 0) / 2) <= currentIndex
+        let playMode: FBPlayMode = result ? .reversed : .serial
+        startAnimatImages(playMode: playMode, completion: completion)
     }
     
     /// 切换图像
     /// - Parameters:
     ///   - isPlus: imageIndex 是否是自增，true 自增，false 自减
-    func switchImage(isPlus: Bool, completion: (()->())?) {
-        
-        if isPlus {
-            currentIndex += 1
-        }else {
-            currentIndex -= 1
-        }
-        
+    func switchImage(mode: FBPlayMode, cancel: (()->())?, completion: (()->())?) {
         let count = currentSequences?.count ?? 0
-        
-        if isPlus {
+        if mode == .serial {
+            currentIndex += 1
+            
             if currentIndex >= count || currentIndex < 0 {
                 currentIndex = 0
+                cancel?()
                 return
             }
         }else {
+            currentIndex -= 1
+            
             if currentIndex < 0 || currentIndex >= count  {
                 currentIndex = count - 1
+                cancel?()
                 return
             }
         }
         
         setImage()
+        
+        restoreProgress?(currentIndex)
         
         completion?()
     }
@@ -192,10 +261,19 @@ extension FBSequenceImageView {
         let model = currentSequences?[currentIndex]
         image = UIImage(contentsOfFile: model?.imagePath ?? "")
     }
+    
+    /// 设置图像
+    /// - Parameters:
+    ///   - sequences: 序列图模型
+    ///   - index: 索引
+    func setImage(at sequences: [FBSequenceModel]?, index: Int) {
+        currentIndex = index
+        currentSequences = sequences
+    }
 }
 
 /// 序列图对象的代理方法
-@objc protocol FBSequenceImageViewDelegate: NSObjectProtocol {
+@objc public protocol FBSequenceImageViewDelegate: NSObjectProtocol {
     @objc optional func sequenceImageView(_ imageView: FBSequenceImageView, didFingerBeganSlide offset: CGPoint)
     
     @objc optional func sequenceImageView(_ imageView: FBSequenceImageView, didFingerEndSlide offset: CGPoint)

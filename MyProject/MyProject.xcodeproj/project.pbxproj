@@ -133,11 +133,11 @@
 		9A0C482A250212BC0004A3D6 /* SourceFiles */ = {
 			isa = PBXGroup;
 			children = (
-				9A0C482E250212F20004A3D6 /* FBNetworkManager.swift */,
 				9A0C482D250212F20004A3D6 /* FBDownloadManager.swift */,
+				9A0C482E250212F20004A3D6 /* FBNetworkManager.swift */,
+				9A0C482C250212F20004A3D6 /* FBSequenceImageView.swift */,
 				9A0C482F250212F20004A3D6 /* FBSequenceManager.swift */,
 				9A0C482B250212F20004A3D6 /* FBSequenceModel.swift */,
-				9A0C482C250212F20004A3D6 /* FBSequenceImageView.swift */,
 			);
 			name = SourceFiles;
 			path = ../../SourceFiles;
