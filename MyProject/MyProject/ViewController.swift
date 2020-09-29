@@ -158,6 +158,8 @@ private extension ViewController {
         loadArchiveInfo {[weak self] (networkModels, isSuccess) in
             
             if isSuccess {
+                self?.networkModels = networkModels
+                
                 // 1. 检查本地是否有 archiveInfo
                 guard let data = NSData(contentsOfFile: archiveInfoPath),
                     let array = try? JSONSerialization.jsonObject(with: data as Data, options: []) as? [[String: Any]] else {
@@ -165,8 +167,6 @@ private extension ViewController {
                         self?.downloadAndUnzip(models: networkModels)
                     return
                 }
-                
-                self?.networkModels = networkModels
                 
                 let localModels = array.kj.modelArray(type: YSSequenceArchive.self) as! [YSSequenceArchive]
                 
