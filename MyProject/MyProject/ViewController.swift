@@ -27,6 +27,7 @@ class ViewController: UIViewController {
     private var currentDownloadTask: URLSessionDownloadTask?
     private var currentResumeData: Data?
     private var currentArchiveTuple: (allArchives: [[YSSequenceArchive]], paths: [String])?
+    private var networkModels: [YSSequenceArchive]?
     private lazy var downloadSpeed: (date: Date, lastRead: Int64, speed: String) = (Date(), 0, "0 KB")
     
     private var downloadTaskModel: FBDownloadTaskModel?
@@ -164,6 +165,8 @@ private extension ViewController {
                         self?.downloadAndUnzip(models: networkModels)
                     return
                 }
+                
+                self?.networkModels = networkModels
                 
                 let localModels = array.kj.modelArray(type: YSSequenceArchive.self) as! [YSSequenceArchive]
                 
@@ -321,7 +324,9 @@ private extension ViewController {
             
             group.notify(queue: DispatchQueue.main) {
                 // 保存下载信息
-                guard let data = try? JSONSerialization.data(withJSONObject: models.kj.JSONObjectArray(), options: []) else {
+                guard let networkModels = self?.networkModels,
+                    let data = try? JSONSerialization.data(withJSONObject: networkModels.kj.JSONObjectArray(), options: [])
+                    else {
                     return
                 }
                 
