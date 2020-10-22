@@ -94,8 +94,10 @@ public extension FBSequenceManager {
     func loadBundlePositionIcon(at bundle: Bundle,
                                 iconPath: String,
                                 pointPath: String,
-                                _ containerSize: CGSize = UIScreen.main.bounds.size,
-                                _ sourceSize: CGSize = CGSize(width: 1024, height: 768))
+                                containerSize: CGSize = UIScreen.main.bounds.size,
+                                sourceSize: CGSize = CGSize(width: 1024, height: 768),
+                                gifWidth: CGFloat = 120,
+                                iconHeight: CGFloat = 100)
         ->
         (image: UIImage?, targerSize: CGSize, points: [CGPoint])
     {
@@ -107,7 +109,11 @@ public extension FBSequenceManager {
         }
         
         return loadCachesPositionIcon(imageFilePath: imageFilePath,
-                                      pointFilePath: pointFilePath)
+                                      pointFilePath: pointFilePath,
+                                      containerSize: containerSize,
+                                      sourceSize: sourceSize,
+                                      gifWidth: gifWidth,
+                                      iconHeight: iconHeight)
     }
     
     /// 从缓存中加载点位图标与坐标的方法
@@ -119,8 +125,10 @@ public extension FBSequenceManager {
     /// - Returns: 返回一个元组，(获取的图像, 建议设置的图像的大小, [坐标点])
     func loadCachesPositionIcon(imageFilePath: String,
                                 pointFilePath: String,
-                                _ containerSize: CGSize = UIScreen.main.bounds.size,
-                                _ sourceSize: CGSize = CGSize(width: 1024, height: 768))
+                                containerSize: CGSize = UIScreen.main.bounds.size,
+                                sourceSize: CGSize = CGSize(width: 1024, height: 768),
+                                gifWidth: CGFloat = 120,
+                                iconHeight: CGFloat = 100)
         ->
         (image: UIImage?, targerSize: CGSize, points: [CGPoint])
     {
@@ -136,11 +144,11 @@ public extension FBSequenceManager {
         
         if imageFilePath.hasSuffix(".gif") {
             print("是 gif 图，路径：\(imageFilePath)")
-            let width: CGFloat = 120
-            let height = width / (size.width / size.height)
-            size = CGSize(width: width, height: height)
+            let height = gifWidth / (image.size.width / image.size.height)
+            size = CGSize(width: gifWidth, height: height)
         }else {
-            size = CGSize(width: image.size.width / 2, height: image.size.height / 2)
+            let width = iconHeight * (image.size.width / image.size.height)
+            size = CGSize(width: width, height: iconHeight)
         }
         
         // 遍历坐标点
