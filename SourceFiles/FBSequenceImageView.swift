@@ -126,7 +126,9 @@ extension FBSequenceImageView {
 
         // 放大情况
         if scale > 1.0 {
-            adjustAnchorPoint(for: gesture)
+            if totalScale <= 1.0 {
+                adjustAnchorPoint(for: gesture)
+            }
             
             if totalScale > maxScale {
                 transform = CGAffineTransform(scaleX: 2.0, y: 2.0)
