@@ -251,7 +251,7 @@ public extension FBSequenceImageView {
         restoreProgress = progress
         
         let result = ((currentSequences?.count ?? 0) / 2) <= currentIndex
-        let playMode: FBPlayMode = result ? .reversed : .serial
+        let playMode: FBPlayMode = result ? .serial : .reversed
         startAnimatImages(playMode: playMode, completion: completion)
     }
     
@@ -272,7 +272,7 @@ public extension FBSequenceImageView {
             currentIndex -= 1
             
             if currentIndex < 0 || currentIndex >= count  {
-                currentIndex = count - 1
+                currentIndex = count == 0 ? 0 : count - 1
                 cancel?()
                 return
             }

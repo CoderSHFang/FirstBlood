@@ -97,7 +97,7 @@ public extension FBSequenceManager {
                                 containerSize: CGSize = UIScreen.main.bounds.size,
                                 sourceSize: CGSize = CGSize(width: 1024, height: 768),
                                 gifWidth: CGFloat = 120,
-                                iconHeight: CGFloat = 100)
+                                iconSize: CGSize = CGSize(width: 0, height: 100))
         ->
         (image: UIImage?, targerSize: CGSize, points: [CGPoint])
     {
@@ -113,7 +113,7 @@ public extension FBSequenceManager {
                                       containerSize: containerSize,
                                       sourceSize: sourceSize,
                                       gifWidth: gifWidth,
-                                      iconHeight: iconHeight)
+                                      iconSize: iconSize)
     }
     
     /// 从缓存中加载点位图标与坐标的方法
@@ -128,7 +128,7 @@ public extension FBSequenceManager {
                                 containerSize: CGSize = UIScreen.main.bounds.size,
                                 sourceSize: CGSize = CGSize(width: 1024, height: 768),
                                 gifWidth: CGFloat = 120,
-                                iconHeight: CGFloat = 100)
+                                iconSize: CGSize = CGSize(width: 0, height: 100))
         ->
         (image: UIImage?, targerSize: CGSize, points: [CGPoint])
     {
@@ -147,8 +147,13 @@ public extension FBSequenceManager {
             let height = gifWidth / (image.size.width / image.size.height)
             size = CGSize(width: gifWidth, height: height)
         }else {
-            let width = iconHeight * (image.size.width / image.size.height)
-            size = CGSize(width: width, height: iconHeight)
+            if iconSize.width == 0 {
+                let width = iconSize.height * (image.size.width / image.size.height)
+                size = CGSize(width: width, height: iconSize.height)
+            }else {
+                let height = iconSize.width / (image.size.width / image.size.height)
+                size = CGSize(width: iconSize.width, height: height)
+            }
         }
         
         // 遍历坐标点
